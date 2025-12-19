@@ -7,148 +7,140 @@ import { extractLearningSituation } from './services/geminiService';
 import * as mammoth from 'mammoth';
 import * as pdfjs from 'pdfjs-dist';
 
-// Declare global for AI Studio tools to resolve "must be of type AIStudio" and "identical modifiers" errors
 declare global {
   interface AIStudio {
     hasSelectedApiKey: () => Promise<boolean>;
     openSelectKey: () => Promise<void>;
   }
   interface Window {
-    readonly aistudio: AIStudio;
+    // Removed readonly modifier to fix 'All declarations must have identical modifiers' error
+    aistudio: AIStudio;
   }
 }
 
-// Configurar el worker de PDF.js des de CDN
 pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.mjs';
 
 const App: React.FC = () => {
-  const [hasKey, setHasKey] = useState<boolean>(true);
+  const [needsKey, setNeedsKey] = useState<boolean>(false);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
   const [result, setResult] = useState<SituacioAprenentatge | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Comprovar si hi ha una clau seleccionada al carregar
+  // Comprovació inicial de la disponibilitat de la clau a l'entorn de Netlify/AI Studio
   useEffect(() => {
-    const checkKey = async () => {
-      // Si estem en un entorn on process.env.API_KEY ja existeix (com Google Studio), no cal el diàleg
-      if (process.env.API_KEY) {
-        setHasKey(true);
-        return;
-      }
-      
-      if (window.aistudio) {
-        const selected = await window.aistudio.hasSelectedApiKey();
-        setHasKey(selected);
+    const checkInitialKey = async () => {
+      const currentKey = process.env.API_KEY;
+      if (!currentKey || currentKey === "") {
+        if (window.aistudio) {
+          const hasKey = await window.aistudio.hasSelectedApiKey();
+          if (!hasKey) setNeedsKey(true);
+        } else {
+          setNeedsKey(true);
+        }
       }
     };
-    checkKey();
+    checkInitialKey();
   }, []);
 
-  const handleOpenKeySelector = async () => {
+  const handleConnect = async () => {
     if (window.aistudio) {
+      // Obrim el diàleg de selecció de clau i procedim immediatament per evitar race conditions
       await window.aistudio.openSelectKey();
-      // Després de cridar el selector, assumim que l'usuari ha fet el procés
-      setHasKey(true);
+      setNeedsKey(false);
+      setError(null);
+    } else {
+      setError("No s'ha detectat el selector de claus oficial. Si us plau, verifica la configuració.");
     }
   };
 
   const extractTextFromPDF = async (arrayBuffer: ArrayBuffer): Promise<string> => {
-    try {
-      const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
-      const pdf = await loadingTask.promise;
-      let fullText = '';
-      
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        const pageText = textContent.items
-          .map((item: any) => item.str)
-          .join(' ');
-        fullText += pageText + '\n';
-      }
-      return fullText;
-    } catch (err) {
-      throw new Error("No s'ha pogut llegir el PDF correctament.");
+    const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
+    const pdf = await loadingTask.promise;
+    let fullText = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      fullText += textContent.items.map((item: any) => item.str).join(' ') + '\n';
     }
+    return fullText;
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     setIsParsing(true);
     setError(null);
-
     try {
-      const fileExtension = file.name.split('.').pop()?.toLowerCase();
-      if (fileExtension === 'pdf') {
-        const arrayBuffer = await file.arrayBuffer();
-        const text = await extractTextFromPDF(arrayBuffer);
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      if (ext === 'pdf') {
+        const text = await extractTextFromPDF(await file.arrayBuffer());
         setInputText(text);
-      } else if (fileExtension === 'docx') {
-        const arrayBuffer = await file.arrayBuffer();
-        const result = await mammoth.extractRawText({ arrayBuffer });
-        setInputText(result.value);
-      } else if (fileExtension === 'txt' || fileExtension === 'md') {
-        const text = await file.text();
-        setInputText(text);
+      } else if (ext === 'docx') {
+        const res = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+        setInputText(res.value);
+      } else {
+        setInputText(await file.text());
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error en processar el fitxer.");
+      setError("Error en llegir el fitxer.");
     } finally {
       setIsParsing(false);
     }
   };
 
   const handleGenerate = async () => {
-    if (!inputText.trim()) {
-      setError("Si us plau, escriu alguna cosa sobre la teva unitat didàctica.");
-      return;
-    }
-
+    if (!inputText.trim()) return;
     setIsLoading(true);
     setError(null);
-    
     try {
-      const extractedData = await extractLearningSituation(inputText);
-      setResult(extractedData);
+      const data = await extractLearningSituation(inputText);
+      setResult(data);
     } catch (err: any) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(msg);
-      
-      // Si l'error diu que falta la clau, tornem a demanar selecció
-      if (msg.toLowerCase().includes("api key") || msg.toLowerCase().includes("not found")) {
-        setHasKey(false);
+      // Gestionem casos on la clau ha fallat o cal re-seleccionar un projecte amb facturació
+      if (err.message === "API_KEY_MISSING" || err.message === "API_KEY_INVALID" || err.message === "ENTITY_NOT_FOUND") {
+        if (err.message === "ENTITY_NOT_FOUND" && window.aistudio) {
+           await window.aistudio.openSelectKey();
+        }
+        setNeedsKey(true);
+        setError("Cal configurar una clau API vàlida de facturació per continuar.");
+      } else {
+        setError(err.message || "S'ha produït un error inesperat.");
       }
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (!hasKey) {
+  if (needsKey) {
     return (
       <Layout>
         <div className="max-w-md mx-auto mt-20 p-8 bg-white rounded-2xl shadow-2xl border border-slate-200 text-center space-y-6">
-          <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+          <div className="w-20 h-20 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
             </svg>
           </div>
-          <h2 className="text-2xl font-black text-slate-800">Connexió amb Gemini</h2>
-          <p className="text-slate-600">
-            Per poder generar les situacions d'aprenentatge amb IA, cal que connectis l'aplicació amb la teva clau de Google Cloud.
+          <h2 className="text-2xl font-black text-slate-800 tracking-tight">Connecta amb Gemini</h2>
+          <p className="text-slate-600 leading-relaxed">
+            Per utilitzar aquesta eina, cal que vinculis el teu propi projecte de Google Cloud mitjançant una clau API de facturació.
           </p>
-          <div className="text-xs text-slate-400 bg-slate-50 p-3 rounded-lg border border-slate-100">
-            Pots obtenir una clau gratuïta a <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="text-red-600 underline">ai.google.dev</a>.
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-left space-y-2">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Instruccions</p>
+            <p className="text-xs text-slate-500">1. Prem el botó de sota.</p>
+            <p className="text-xs text-slate-500">2. Selecciona un projecte amb facturació activa.</p>
+            <p className="text-xs text-slate-500">3. L'aplicació es carregarà automàticament.</p>
           </div>
           <button 
-            onClick={handleOpenKeySelector}
+            onClick={handleConnect}
             className="w-full py-4 bg-red-600 text-white rounded-xl font-bold uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg active:scale-95"
           >
             Configurar Clau API
           </button>
+          <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="block text-xs text-slate-400 hover:text-red-600 underline">
+            Documentació sobre facturació i claus
+          </a>
         </div>
       </Layout>
     );
@@ -162,7 +154,7 @@ const App: React.FC = () => {
             <div className="inline-block px-4 py-1.5 bg-red-100 text-red-700 rounded-full text-xs font-bold uppercase tracking-widest mb-2">
               Currículum Catalunya
             </div>
-            <h2 className="text-4xl font-black text-slate-900 leading-tight">Generador de Situacions d'Aprenentatge</h2>
+            <h2 className="text-4xl font-black text-slate-900 leading-tight tracking-tight">Generador de Situacions d'Aprenentatge</h2>
             <p className="text-lg text-slate-600 max-w-2xl mx-auto">
               Crea la teva taula oficial LOMLOE en segons a partir d'esborranys o fitxers.
             </p>
@@ -178,8 +170,8 @@ const App: React.FC = () => {
                       <div className="animate-spin h-6 w-6 border-2 border-red-600 border-t-transparent rounded-full"></div>
                     ) : (
                       <>
-                        <p className="text-sm font-bold text-slate-700">Tria un fitxer PDF o Word</p>
-                        <p className="text-xs text-slate-500 mt-1">Extracció automàtica de text</p>
+                        <p className="text-sm font-bold text-slate-700 text-center">Tria un fitxer PDF, Word o Text</p>
+                        <p className="text-xs text-slate-400 mt-1">Extracció automàtica</p>
                       </>
                     )}
                   </div>
@@ -189,7 +181,7 @@ const App: React.FC = () => {
 
               <div className="bg-blue-50 p-5 rounded-xl border border-blue-100 flex items-center">
                 <p className="text-sm text-blue-800 leading-relaxed">
-                  <strong>Consell:</strong> Com més detalls donis (curs, matèria, activitats principals), millor serà la selecció de competències i sabers.
+                  <strong>Consell:</strong> Inclou el curs, la matèria i una llista d'activitats. La IA cercarà els sabers i competències més adients.
                 </p>
               </div>
             </div>
@@ -199,7 +191,7 @@ const App: React.FC = () => {
               <textarea
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                placeholder="Exemple: Unitat sobre el cos humà per a 1r de primària. Farem un dibuix de siluetes, aprendrem els sentits i jugarem a endevinar olors..."
+                placeholder="Exemple: Treballarem l'ecosistema marí amb alumnes de 4t de primària. Visitarem el port, farem un mural..."
                 className="w-full h-64 p-5 border border-slate-300 rounded-xl focus:ring-4 focus:ring-red-100 focus:border-red-500 transition-all resize-none text-slate-700 text-base"
               />
             </div>
@@ -225,7 +217,7 @@ const App: React.FC = () => {
               {isLoading ? (
                 <>
                   <div className="animate-spin h-6 w-6 border-4 border-white border-t-transparent rounded-full"></div>
-                  Generant taula...
+                  Processant Currículum...
                 </>
               ) : "Generar Taula Oficial"}
             </button>
@@ -237,7 +229,9 @@ const App: React.FC = () => {
             <button onClick={() => setResult(null)} className="flex items-center gap-2 font-bold text-slate-600 hover:text-red-600 transition-colors">
               ← Nova planificació
             </button>
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Document Generat</span>
+            <div className="flex gap-4">
+               <button onClick={handleConnect} className="text-xs font-bold text-slate-400 hover:text-slate-600 uppercase tracking-widest">Canviar Clau API</button>
+            </div>
           </div>
           <TableDisplay data={result} onEdit={(newData) => setResult(newData)} />
         </div>
