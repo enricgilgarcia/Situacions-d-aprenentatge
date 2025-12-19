@@ -21,7 +21,7 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-flash-latest",
+      model: "gemini-3-flash-preview",
       contents: [{ parts: [{ text: prompt }] }],
       config: {
         responseMimeType: "application/json",
@@ -121,9 +121,15 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
     return JSON.parse(jsonText) as SituacioAprenentatge;
   } catch (error: any) {
     console.error("Gemini API Error:", error);
+    
+    let userMessage = "S'ha produït un error en generar la taula.";
+    
     if (error.message?.includes("API key")) {
-      throw new Error("Error de credencials: La clau API no és vàlida o no està configurada.");
+      userMessage = "Error de configuració: La clau API no és vàlida o no s'ha trobat en aquest entorn (Netlify).";
+    } else if (error.message) {
+      userMessage = `Error de l'API: ${error.message}`;
     }
-    throw new Error("No s'ha pogut processar la unitat. Intenta-ho amb un text més clar.");
+    
+    throw new Error(userMessage);
   }
 };
