@@ -3,18 +3,19 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { SituacioAprenentatge } from "../types";
 
 export const extractLearningSituation = async (text: string): Promise<SituacioAprenentatge> => {
-  // L'SDK utilitzarà la clau process.env.API_KEY injectada
+  // L'SDK utilitza automàticament la clau de process.env.API_KEY configurada pel sistema.
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  const prompt = `Analitza el següent text de planificació i genera una Situació d'Aprenentatge seguint el model oficial de la Generalitat de Catalunya (LOMLOE). 
-  Assegura't que:
-  1. Els Objectius segueixin el patró: CAPACITAT + SABER + FINALITAT.
-  2. Els Criteris d'avaluació segueixin el patró: ACCIÓ + SABER + CONTEXT.
-  3. Les activitats es divideixin en les 4 fases oficials (Inicial, Desenvolupament, Estructuració, Aplicació).
-  4. S'inclogui el tractament de vectors i suports DUA.
-  5. Selecciona Competències Específiques i Sabers reals segons el currículum LOMLOE de Catalunya per al curs indicat.
+  const prompt = `Ets un expert en el currículum LOMLOE de la Generalitat de Catalunya. 
+  A partir del text de planificació següent, genera una Situació d'Aprenentatge completa en format JSON seguint el model oficial.
+  
+  Regles d'or del currículum de Catalunya:
+  1. Els Objectius han de ser capaços (ex: Identificar..., Analitzar...) + Saber (ex: les fonts d'energia...) + Finalitat (ex: per promoure el consum responsable).
+  2. Els Criteris d'avaluació han d'indicar una acció observable + context.
+  3. Les activitats han d'estar equilibrades en les 4 fases (Inicial, Desenvolupament, Estructuració, Aplicació).
+  4. Selecciona les Competències Específiques i Sabers reals que corresponguin al curs i àrea que s'extregui del text.
 
-  Text:
+  TEXT DE PLANIFICACIÓ:
   ---
   ${text}
   ---`;
@@ -116,11 +117,11 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
   });
 
   try {
-    const jsonStr = response.text;
-    if (!jsonStr) throw new Error("Resposta de la IA buida.");
-    return JSON.parse(jsonStr) as SituacioAprenentatge;
+    const rawResponse = response.text;
+    if (!rawResponse) throw new Error("La IA no ha tornat dades.");
+    return JSON.parse(rawResponse) as SituacioAprenentatge;
   } catch (error) {
-    console.error("Error parsing AI response:", error);
-    throw new Error("No s'ha pogut processar la planificació. Prova d'introduir un text més detallat.");
+    console.error("Error parsing response:", error);
+    throw new Error("No s'ha pogut analitzar la planificació. Revisa que el text sigui correcte.");
   }
 };
