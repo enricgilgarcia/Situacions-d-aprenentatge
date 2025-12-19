@@ -3,23 +3,22 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { SituacioAprenentatge } from "../types";
 
 export const extractLearningSituation = async (text: string): Promise<SituacioAprenentatge> => {
-  const apiKey = process.env.API_KEY;
+  // L'SDK agafarà automàticament la clau de process.env.API_KEY injectada pel hosting
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  if (!apiKey || apiKey === "" || apiKey === "undefined") {
-    throw new Error("No s'ha trobat cap clau API activa. Si estàs a Netlify, assegura't d'haver configurat la variable d'entorn API_KEY. Si estàs a AI Studio, utilitza el selector de claus.");
-  }
-
-  // Inicialització amb la clau garantida
-  const ai = new GoogleGenAI({ apiKey });
+  const prompt = `Analitza el següent text de planificació docent i genera una Situació d'Aprenentatge seguint estrictament el model oficial de la Generalitat de Catalunya (LOMLOE). 
   
-  const prompt = `Analitza el següent text de planificació i genera una Situació d'Aprenentatge seguint el model oficial de la Generalitat de Catalunya (LOMLOE). 
-  Assegura't que:
-  1. Els Objectius segueixin el patró: CAPACITAT + SABER + FINALITAT.
-  2. Els Criteris d'avaluació segueixin el patró: ACCIÓ + SABER + CONTEXT.
-  3. Les activitats es divideixin en les 4 fases oficials.
-  4. S'inclogui el tractament de vectors i suports DUA.
-
-  Text:
+  Instruccions de contingut:
+  1. Identificació: Títol suggerent, curs i matèria.
+  2. Descripció: Detalla el context d'aprenentatge i el repte o pregunta motriu.
+  3. Competències Específiques: Selecciona les més coherents amb el text.
+  4. Objectius: Segueix el patró "Infinitiu + Saber + Finalitat".
+  5. Criteris d'avaluació: Segueix el patró "Acció + Saber + Context".
+  6. Sabers: Llista els continguts clau.
+  7. Activitats: Descriu-les breument en les 4 fases (Inicial, Desenvolupament, Estructuració, Aplicació).
+  8. Vectors: Tria els vectors transversals de la LOMLOE (perspectiva de gènere, sostenibilitat, etc.).
+  
+  Text de l'esborrany:
   ---
   ${text}
   ---`;
@@ -122,10 +121,9 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
 
   try {
     const textResult = response.text;
-    if (!textResult) throw new Error("La IA ha retornat una resposta buida.");
+    if (!textResult) throw new Error("La IA no ha pogut generar el contingut.");
     return JSON.parse(textResult) as SituacioAprenentatge;
   } catch (error) {
-    console.error("Error parsing AI response:", error);
-    throw new Error("No s'ha pogut parsejar la resposta de la IA. Intenta-ho de nou.");
+    throw new Error("S'ha produït un error en processar la resposta. Torna a intentar-ho amb un text més detallat.");
   }
 };
