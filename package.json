@@ -10,8 +10,8 @@
   },
   "dependencies": {
     "@google/genai": "^1.34.0",
-    "react-dom": "^19.2.3",
     "react": "^19.2.3",
+    "react-dom": "^19.2.3",
     "mammoth": "1.8.0",
     "pdfjs-dist": "4.10.38",
     "docx": "9.1.0",
