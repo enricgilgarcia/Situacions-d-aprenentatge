@@ -3,8 +3,14 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { SituacioAprenentatge } from "../types";
 
 export const extractLearningSituation = async (text: string): Promise<SituacioAprenentatge> => {
-  // Inicialització dins de la funció per obtenir la clau més recent
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = process.env.API_KEY;
+  
+  if (!apiKey || apiKey === "" || apiKey === "undefined") {
+    throw new Error("No s'ha trobat cap clau API activa. Si estàs a Netlify, assegura't d'haver configurat la variable d'entorn API_KEY. Si estàs a AI Studio, utilitza el selector de claus.");
+  }
+
+  // Inicialització amb la clau garantida
+  const ai = new GoogleGenAI({ apiKey });
   
   const prompt = `Analitza el següent text de planificació i genera una Situació d'Aprenentatge seguint el model oficial de la Generalitat de Catalunya (LOMLOE). 
   Assegura't que:
@@ -115,9 +121,11 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
   });
 
   try {
-    return JSON.parse(response.text || "{}") as SituacioAprenentatge;
+    const textResult = response.text;
+    if (!textResult) throw new Error("La IA ha retornat una resposta buida.");
+    return JSON.parse(textResult) as SituacioAprenentatge;
   } catch (error) {
     console.error("Error parsing AI response:", error);
-    throw new Error("No s'ha pogut parsejar la resposta de la IA.");
+    throw new Error("No s'ha pogut parsejar la resposta de la IA. Intenta-ho de nou.");
   }
 };

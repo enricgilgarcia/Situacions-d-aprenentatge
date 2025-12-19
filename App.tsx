@@ -21,24 +21,29 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const checkKey = async () => {
-      // Si la clau ja està injectada via env (Netlify), la considerem vàlida
-      if (process.env.API_KEY && process.env.API_KEY !== "") {
+      // 1. Prioritat: Variable d'entorn real (Injectada per Netlify o similar)
+      const envKey = process.env.API_KEY;
+      if (envKey && envKey !== "" && envKey !== "undefined") {
         setHasApiKey(true);
         setCheckingKey(false);
         return;
       }
 
-      // Altrament, comprovem el selector de AI Studio
+      // 2. Segona opció: Entorn de AI Studio
       try {
         if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
           const selected = await window.aistudio.hasSelectedApiKey();
-          setHasApiKey(selected);
+          if (selected) {
+            setHasApiKey(true);
+            setCheckingKey(false);
+            return;
+          }
         }
       } catch (err) {
-        console.error("Error comprovant clau API:", err);
-      } finally {
-        setCheckingKey(false);
+        console.warn("Error comprovant clau AI Studio:", err);
       }
+      
+      setCheckingKey(false);
     };
     checkKey();
   }, []);
@@ -47,10 +52,10 @@ const App: React.FC = () => {
     try {
       if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
         await window.aistudio.openSelectKey();
-        // Segons les regles, assumim èxit després de l'obertura per evitar race conditions
         setHasApiKey(true);
+        setError(null);
       } else {
-        setError("El selector de claus no està disponible en aquest entorn.");
+        setError("Aquesta funció només està disponible dins de Google AI Studio. Si estàs a Netlify, has de configurar la variable d'entorn API_KEY als ajustos del lloc.");
       }
     } catch (err) {
       setError("No s'ha pogut obrir el selector de claus.");
@@ -116,9 +121,10 @@ const App: React.FC = () => {
       const extractedData = await extractLearningSituation(inputText);
       setResult(extractedData);
     } catch (err: any) {
-      if (err.message && err.message.includes("Requested entity was not found")) {
+      console.error("Error durant la generació:", err);
+      if (err.message && (err.message.includes("API Key") || err.message.includes("not found"))) {
         setHasApiKey(false);
-        setError("La clau API ja no és vàlida. Torna a seleccionar-la.");
+        setError(err.message);
       } else {
         setError(err instanceof Error ? err.message : "S'ha produït un error inesperat.");
       }
@@ -130,9 +136,9 @@ const App: React.FC = () => {
   if (checkingKey) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="animate-pulse flex flex-col items-center gap-4">
-          <div className="h-12 w-12 bg-slate-200 rounded-full"></div>
-          <div className="h-4 w-32 bg-slate-200 rounded"></div>
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin h-10 w-10 border-4 border-red-600 border-t-transparent rounded-full"></div>
+          <p className="text-slate-500 font-medium">Comprovant configuració...</p>
         </div>
       </div>
     );
@@ -141,25 +147,35 @@ const App: React.FC = () => {
   if (!hasApiKey) {
     return (
       <Layout>
-        <div className="max-w-md mx-auto mt-12 text-center p-8 bg-white rounded-2xl shadow-xl border border-slate-200">
+        <div className="max-w-xl mx-auto mt-12 text-center p-8 bg-white rounded-2xl shadow-xl border border-slate-200">
           <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold mb-4">Configuració necessària</h2>
-          <p className="text-slate-600 mb-8">
-            Per utilitzar el generador de Situacions d'Aprenentatge, cal connectar amb l'API de Gemini. 
-            Utilitza una clau d'un projecte amb facturació activa.
-          </p>
+          <h2 className="text-2xl font-bold mb-4">Clau API no trobada</h2>
+          
+          <div className="text-left space-y-4 mb-8">
+            <p className="text-slate-600">
+              Aquesta aplicació necessita una clau de l'API de Google Gemini per funcionar. Teniu dues opcions:
+            </p>
+            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 text-sm space-y-3">
+              <p><strong>A Netlify:</strong> Ves a <em>Site Configuration > Environment Variables</em> i afegeix una variable anomenada <code>API_KEY</code> amb la teva clau.</p>
+              <p><strong>A AI Studio:</strong> Fes clic al botó de sota per autoritzar l'ús de la teva clau de pagament.</p>
+            </div>
+          </div>
+
           <button
             onClick={handleOpenKeySelector}
-            className="w-full py-4 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition shadow-lg flex items-center justify-center gap-3"
+            className="w-full py-4 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition shadow-lg flex items-center justify-center gap-3 mb-4"
           >
-            Configurar clau API de Google
+            Configurar via Google AI Studio
           </button>
-          <p className="mt-4 text-xs text-slate-400">
-            Pots consultar la <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="underline">documentació sobre facturació</a>.
+          
+          {error && <p className="text-red-600 text-sm font-medium mt-2">{error}</p>}
+          
+          <p className="mt-6 text-xs text-slate-400">
+            Per a més informació, consulteu <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="underline">ai.google.dev/gemini-api/docs/billing</a>.
           </p>
         </div>
       </Layout>
@@ -200,6 +216,7 @@ const App: React.FC = () => {
               <textarea
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
+                placeholder="Exemple: Vull fer una unitat de medi natural sobre les plantes per a 3r de primària..."
                 className="w-full h-64 p-4 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 transition resize-none text-slate-700 text-sm"
               />
             </div>
@@ -219,15 +236,20 @@ const App: React.FC = () => {
                   : 'bg-red-600 hover:bg-red-700'
               }`}
             >
-              {isLoading ? "Analitzant contingut..." : "Generar Taula Oficial (LOMLOE)"}
+              {isLoading ? (
+                <>
+                  <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
+                  Analitzant contingut...
+                </>
+              ) : "Generar Taula Oficial (LOMLOE)"}
             </button>
           </div>
         </div>
       ) : (
         <div className="space-y-6">
-          <div className="flex items-center justify-between no-print">
+          <div className="flex items-center justify-between no-print px-4">
             <button onClick={() => setResult(null)} className="text-slate-500 hover:text-red-600 font-medium flex items-center gap-2 transition">
-              ← Tornar a començar
+              ← Tornar a l'editor
             </button>
           </div>
           <TableDisplay data={result} onEdit={(newData) => setResult(newData)} />
