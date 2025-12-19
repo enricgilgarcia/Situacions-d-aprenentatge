@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Layout } from './components/Layout';
 import { TableDisplay } from './components/TableDisplay';
 import { SituacioAprenentatge } from './types';
@@ -7,53 +7,15 @@ import { extractLearningSituation } from './services/geminiService';
 import * as mammoth from 'mammoth';
 import * as pdfjs from 'pdfjs-dist';
 
-declare global {
-  interface AIStudio {
-    hasSelectedApiKey: () => Promise<boolean>;
-    openSelectKey: () => Promise<void>;
-  }
-  interface Window {
-    // Removed readonly modifier to fix 'All declarations must have identical modifiers' error
-    aistudio: AIStudio;
-  }
-}
-
+// Configurar el worker de PDF.js
 pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.mjs';
 
 const App: React.FC = () => {
-  const [needsKey, setNeedsKey] = useState<boolean>(false);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
   const [result, setResult] = useState<SituacioAprenentatge | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  // Comprovació inicial de la disponibilitat de la clau a l'entorn de Netlify/AI Studio
-  useEffect(() => {
-    const checkInitialKey = async () => {
-      const currentKey = process.env.API_KEY;
-      if (!currentKey || currentKey === "") {
-        if (window.aistudio) {
-          const hasKey = await window.aistudio.hasSelectedApiKey();
-          if (!hasKey) setNeedsKey(true);
-        } else {
-          setNeedsKey(true);
-        }
-      }
-    };
-    checkInitialKey();
-  }, []);
-
-  const handleConnect = async () => {
-    if (window.aistudio) {
-      // Obrim el diàleg de selecció de clau i procedim immediatament per evitar race conditions
-      await window.aistudio.openSelectKey();
-      setNeedsKey(false);
-      setError(null);
-    } else {
-      setError("No s'ha detectat el selector de claus oficial. Si us plau, verifica la configuració.");
-    }
-  };
 
   const extractTextFromPDF = async (arrayBuffer: ArrayBuffer): Promise<string> => {
     const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
@@ -98,53 +60,11 @@ const App: React.FC = () => {
       const data = await extractLearningSituation(inputText);
       setResult(data);
     } catch (err: any) {
-      // Gestionem casos on la clau ha fallat o cal re-seleccionar un projecte amb facturació
-      if (err.message === "API_KEY_MISSING" || err.message === "API_KEY_INVALID" || err.message === "ENTITY_NOT_FOUND") {
-        if (err.message === "ENTITY_NOT_FOUND" && window.aistudio) {
-           await window.aistudio.openSelectKey();
-        }
-        setNeedsKey(true);
-        setError("Cal configurar una clau API vàlida de facturació per continuar.");
-      } else {
-        setError(err.message || "S'ha produït un error inesperat.");
-      }
+      setError(err.message || "S'ha produït un error inesperat.");
     } finally {
       setIsLoading(false);
     }
   };
-
-  if (needsKey) {
-    return (
-      <Layout>
-        <div className="max-w-md mx-auto mt-20 p-8 bg-white rounded-2xl shadow-2xl border border-slate-200 text-center space-y-6">
-          <div className="w-20 h-20 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
-            </svg>
-          </div>
-          <h2 className="text-2xl font-black text-slate-800 tracking-tight">Connecta amb Gemini</h2>
-          <p className="text-slate-600 leading-relaxed">
-            Per utilitzar aquesta eina, cal que vinculis el teu propi projecte de Google Cloud mitjançant una clau API de facturació.
-          </p>
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-left space-y-2">
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Instruccions</p>
-            <p className="text-xs text-slate-500">1. Prem el botó de sota.</p>
-            <p className="text-xs text-slate-500">2. Selecciona un projecte amb facturació activa.</p>
-            <p className="text-xs text-slate-500">3. L'aplicació es carregarà automàticament.</p>
-          </div>
-          <button 
-            onClick={handleConnect}
-            className="w-full py-4 bg-red-600 text-white rounded-xl font-bold uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg active:scale-95"
-          >
-            Configurar Clau API
-          </button>
-          <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="block text-xs text-slate-400 hover:text-red-600 underline">
-            Documentació sobre facturació i claus
-          </a>
-        </div>
-      </Layout>
-    );
-  }
 
   return (
     <Layout>
@@ -229,9 +149,6 @@ const App: React.FC = () => {
             <button onClick={() => setResult(null)} className="flex items-center gap-2 font-bold text-slate-600 hover:text-red-600 transition-colors">
               ← Nova planificació
             </button>
-            <div className="flex gap-4">
-               <button onClick={handleConnect} className="text-xs font-bold text-slate-400 hover:text-slate-600 uppercase tracking-widest">Canviar Clau API</button>
-            </div>
           </div>
           <TableDisplay data={result} onEdit={(newData) => setResult(newData)} />
         </div>

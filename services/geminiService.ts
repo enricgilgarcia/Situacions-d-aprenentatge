@@ -3,12 +3,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { SituacioAprenentatge } from "../types";
 
 export const extractLearningSituation = async (text: string): Promise<SituacioAprenentatge> => {
-  // Comprovem si la clau API està disponible a l'entorn
-  if (!process.env.API_KEY || process.env.API_KEY === "") {
-    throw new Error("API_KEY_MISSING");
-  }
-
-  // Creem la instància just abans de la crida per assegurar que utilitzem la clau més recent
+  // Inicialització directa segons les directrius de l'SDK
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const prompt = `Ets un assistent expert en la LOMLOE i el currículum de la Generalitat de Catalunya.
@@ -26,7 +21,6 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
 
   try {
     const response = await ai.models.generateContent({
-      // Utilitzem gemini-3-pro-preview per a tasques de raonament complex com la planificació pedagògica
       model: "gemini-3-pro-preview",
       contents: [{ parts: [{ text: prompt }] }],
       config: {
@@ -126,17 +120,7 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
     if (!jsonText) throw new Error("La IA no ha generat cap contingut.");
     return JSON.parse(jsonText) as SituacioAprenentatge;
   } catch (error: any) {
-    console.error("Gemini API Error details:", error);
-    
-    // Gestió d'errors de clau API i entitat no trobada per demanar re-selecció de clau
-    if (error.message?.includes("API key") || error.message?.includes("403") || error.message?.includes("401")) {
-      throw new Error("API_KEY_INVALID");
-    }
-
-    if (error.message?.includes("Requested entity was not found")) {
-      throw new Error("ENTITY_NOT_FOUND");
-    }
-    
-    throw new Error(error.message || "Error de comunicació amb la IA.");
+    console.error("Gemini API Error:", error);
+    throw new Error(error.message || "Error en la comunicació amb Gemini.");
   }
 };
