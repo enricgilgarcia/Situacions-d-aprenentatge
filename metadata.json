@@ -1,0 +1,5 @@
+{
+  "name": "Generador de Situacions d'Aprenentatge (LOMLOE Catalunya)",
+  "description": "Una eina per omplir automàticament la taula oficial de situacions d'aprenentatge de la Generalitat de Catalunya a partir d'un text o document de planificació docente utilitzant la IA de Gemini.",
+  "requestFramePermissions": []
+}
