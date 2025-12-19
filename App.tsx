@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { TableDisplay } from './components/TableDisplay';
 import { SituacioAprenentatge } from './types';
@@ -16,6 +16,46 @@ const App: React.FC = () => {
   const [isParsing, setIsParsing] = useState(false);
   const [result, setResult] = useState<SituacioAprenentatge | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [hasApiKey, setHasApiKey] = useState<boolean>(false);
+  const [checkingKey, setCheckingKey] = useState<boolean>(true);
+
+  useEffect(() => {
+    const checkKey = async () => {
+      // Si la clau ja està injectada via env (Netlify), la considerem vàlida
+      if (process.env.API_KEY && process.env.API_KEY !== "") {
+        setHasApiKey(true);
+        setCheckingKey(false);
+        return;
+      }
+
+      // Altrament, comprovem el selector de AI Studio
+      try {
+        if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+          const selected = await window.aistudio.hasSelectedApiKey();
+          setHasApiKey(selected);
+        }
+      } catch (err) {
+        console.error("Error comprovant clau API:", err);
+      } finally {
+        setCheckingKey(false);
+      }
+    };
+    checkKey();
+  }, []);
+
+  const handleOpenKeySelector = async () => {
+    try {
+      if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
+        await window.aistudio.openSelectKey();
+        // Segons les regles, assumim èxit després de l'obertura per evitar race conditions
+        setHasApiKey(true);
+      } else {
+        setError("El selector de claus no està disponible en aquest entorn.");
+      }
+    } catch (err) {
+      setError("No s'ha pogut obrir el selector de claus.");
+    }
+  };
 
   const extractTextFromPDF = async (arrayBuffer: ArrayBuffer): Promise<string> => {
     const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
@@ -54,10 +94,10 @@ const App: React.FC = () => {
         const text = await file.text();
         setInputText(text);
       } else {
-        throw new Error("Format de fitxer no suportat (utilitza PDF, DOCX o TXT).");
+        throw new Error("Format de fitxer no suportat.");
       }
     } catch (err) {
-      setError("No s'ha pogut processar el fitxer correctament.");
+      setError("No s'ha pogut processar el fitxer.");
     } finally {
       setIsParsing(false);
     }
@@ -65,7 +105,7 @@ const App: React.FC = () => {
 
   const handleGenerate = async () => {
     if (!inputText.trim()) {
-      setError("Si us plau, introdueix o puja un text de planificació abans de continuar.");
+      setError("Si us plau, introdueix o puja un text de planificació.");
       return;
     }
 
@@ -76,16 +116,55 @@ const App: React.FC = () => {
       const extractedData = await extractLearningSituation(inputText);
       setResult(extractedData);
     } catch (err: any) {
-      console.error("Error durant la generació:", err);
-      if (err.message && err.message.includes("API Key")) {
-        setError("Error de configuració: La clau de l'API no s'ha carregat correctament. Si ets l'administrador, revisa les variables d'entorn.");
+      if (err.message && err.message.includes("Requested entity was not found")) {
+        setHasApiKey(false);
+        setError("La clau API ja no és vàlida. Torna a seleccionar-la.");
       } else {
-        setError(err instanceof Error ? err.message : "S'ha produït un error inesperat analitzant el text.");
+        setError(err instanceof Error ? err.message : "S'ha produït un error inesperat.");
       }
     } finally {
       setIsLoading(false);
     }
   };
+
+  if (checkingKey) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="animate-pulse flex flex-col items-center gap-4">
+          <div className="h-12 w-12 bg-slate-200 rounded-full"></div>
+          <div className="h-4 w-32 bg-slate-200 rounded"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasApiKey) {
+    return (
+      <Layout>
+        <div className="max-w-md mx-auto mt-12 text-center p-8 bg-white rounded-2xl shadow-xl border border-slate-200">
+          <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold mb-4">Configuració necessària</h2>
+          <p className="text-slate-600 mb-8">
+            Per utilitzar el generador de Situacions d'Aprenentatge, cal connectar amb l'API de Gemini. 
+            Utilitza una clau d'un projecte amb facturació activa.
+          </p>
+          <button
+            onClick={handleOpenKeySelector}
+            className="w-full py-4 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition shadow-lg flex items-center justify-center gap-3"
+          >
+            Configurar clau API de Google
+          </button>
+          <p className="mt-4 text-xs text-slate-400">
+            Pots consultar la <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="underline">documentació sobre facturació</a>.
+          </p>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -93,57 +172,40 @@ const App: React.FC = () => {
         <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in duration-500">
           <div className="text-center space-y-3">
             <h2 className="text-3xl font-extrabold text-slate-900">Planifica la teva docència amb IA</h2>
-            <p className="text-slate-600">Genera la taula oficial LOMLOE a partir de qualsevol esborrany, nota o document.</p>
+            <p className="text-slate-600">Puja el teu esborrany o enganxa les teves notes per generar la taula oficial LOMLOE.</p>
           </div>
 
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-slate-700">1. Puja un document (opcional)</label>
-                <div className="flex items-center justify-center w-full">
-                  <label className={`flex flex-col items-center justify-center w-full h-24 border-2 border-slate-300 border-dashed rounded-lg cursor-pointer transition ${isParsing ? 'bg-slate-200 cursor-wait' : 'bg-slate-50 hover:bg-slate-100'}`}>
-                    <div className="flex flex-col items-center justify-center">
-                      {isParsing ? (
-                        <p className="text-xs font-medium text-slate-600">Processant...</p>
-                      ) : (
-                        <>
-                          <svg className="w-6 h-6 mb-2 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                          </svg>
-                          <p className="text-xs text-slate-500 font-semibold">Clica per carregar PDF o DOCX</p>
-                        </>
-                      )}
-                    </div>
-                    <input type="file" className="hidden" accept=".txt,.md,.pdf,.docx" onChange={handleFileUpload} disabled={isParsing} />
-                  </label>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-slate-700">Notes ràpides</label>
-                <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
-                  <p className="text-xs text-blue-800 leading-relaxed">
-                    Pots enganxar textos desordenats. La IA s'encarregarà d'extreure les competències i sabers oficials.
-                  </p>
-                </div>
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Opció 1: Puja un fitxer</label>
+              <div className="flex items-center justify-center w-full">
+                <label className={`flex flex-col items-center justify-center w-full h-32 border-2 border-slate-300 border-dashed rounded-lg cursor-pointer transition ${isParsing ? 'bg-slate-200 cursor-wait' : 'bg-slate-50 hover:bg-slate-100'}`}>
+                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                    {isParsing ? (
+                      <p className="text-sm font-medium text-slate-600">Llegint el document...</p>
+                    ) : (
+                      <>
+                        <svg className="w-8 h-8 mb-4 text-slate-500" fill="none" viewBox="0 0 20 16"><path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/></svg>
+                        <p className="text-sm text-slate-500"><span className="font-semibold">Fes clic per pujar</span></p>
+                      </>
+                    )}
+                  </div>
+                  <input type="file" className="hidden" accept=".txt,.md,.pdf,.docx" onChange={handleFileUpload} disabled={isParsing} />
+                </label>
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">2. Text de la planificació o esborrany</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Text de la planificació</label>
               <textarea
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                placeholder="Exemple: Unitat de medi sobre les plantes per a 3r de primària. Farem un hort escolar, estudiarem les parts de la flor i la fotosíntesi. Vull treballar la competència de recerca científica..."
-                className="w-full h-64 p-4 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 transition resize-none text-slate-700 text-sm shadow-inner"
+                className="w-full h-64 p-4 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 transition resize-none text-slate-700 text-sm"
               />
             </div>
 
             {error && (
-              <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg flex items-center gap-3 animate-bounce">
-                <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+              <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg flex items-center gap-3">
                 <span className="text-sm font-medium">{error}</span>
               </div>
             )}
@@ -154,23 +216,18 @@ const App: React.FC = () => {
               className={`w-full py-4 rounded-lg font-bold text-white shadow-md transition-all flex items-center justify-center gap-3 ${
                 isLoading || isParsing || !inputText.trim() 
                   ? 'bg-slate-300 cursor-not-allowed' 
-                  : 'bg-red-600 hover:bg-red-700 active:scale-95'
+                  : 'bg-red-600 hover:bg-red-700'
               }`}
             >
-              {isLoading ? (
-                <>
-                  <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
-                  Generant document oficial...
-                </>
-              ) : "Generar Taula Oficial (LOMLOE)"}
+              {isLoading ? "Analitzant contingut..." : "Generar Taula Oficial (LOMLOE)"}
             </button>
           </div>
         </div>
       ) : (
         <div className="space-y-6">
-          <div className="flex items-center justify-between no-print px-4">
-            <button onClick={() => setResult(null)} className="text-slate-500 hover:text-red-600 font-medium flex items-center gap-2 transition group">
-              <span className="group-hover:-translate-x-1 transition-transform">←</span> Tornar a l'editor
+          <div className="flex items-center justify-between no-print">
+            <button onClick={() => setResult(null)} className="text-slate-500 hover:text-red-600 font-medium flex items-center gap-2 transition">
+              ← Tornar a començar
             </button>
           </div>
           <TableDisplay data={result} onEdit={(newData) => setResult(newData)} />
