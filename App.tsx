@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { TableDisplay } from './components/TableDisplay';
 import { SituacioAprenentatge } from './types';
@@ -7,7 +7,7 @@ import { extractLearningSituation } from './services/geminiService';
 import * as mammoth from 'mammoth';
 import * as pdfjs from 'pdfjs-dist';
 
-// Configurar el worker de PDF.js des de CDN per evitar problemes de rutes
+// Configurar el worker de PDF.js des de CDN
 pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.mjs';
 
 const App: React.FC = () => {
@@ -16,6 +16,46 @@ const App: React.FC = () => {
   const [isParsing, setIsParsing] = useState(false);
   const [result, setResult] = useState<SituacioAprenentatge | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [hasApiKey, setHasApiKey] = useState<boolean>(false);
+  const [checkingKey, setCheckingKey] = useState<boolean>(true);
+
+  useEffect(() => {
+    const checkKey = async () => {
+      // Si la clau ja està injectada via env (Netlify), la considerem vàlida
+      if (process.env.API_KEY && process.env.API_KEY !== "") {
+        setHasApiKey(true);
+        setCheckingKey(false);
+        return;
+      }
+
+      // Altrament, comprovem el selector de AI Studio
+      try {
+        if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+          const selected = await window.aistudio.hasSelectedApiKey();
+          setHasApiKey(selected);
+        }
+      } catch (err) {
+        console.error("Error comprovant clau API:", err);
+      } finally {
+        setCheckingKey(false);
+      }
+    };
+    checkKey();
+  }, []);
+
+  const handleOpenKeySelector = async () => {
+    try {
+      if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
+        await window.aistudio.openSelectKey();
+        // Segons les regles, assumim èxit després de l'obertura per evitar race conditions
+        setHasApiKey(true);
+      } else {
+        setError("El selector de claus no està disponible en aquest entorn.");
+      }
+    } catch (err) {
+      setError("No s'ha pogut obrir el selector de claus.");
+    }
+  };
 
   const extractTextFromPDF = async (arrayBuffer: ArrayBuffer): Promise<string> => {
     const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
@@ -42,7 +82,6 @@ const App: React.FC = () => {
 
     try {
       const fileExtension = file.name.split('.').pop()?.toLowerCase();
-
       if (fileExtension === 'pdf') {
         const arrayBuffer = await file.arrayBuffer();
         const text = await extractTextFromPDF(arrayBuffer);
@@ -55,11 +94,10 @@ const App: React.FC = () => {
         const text = await file.text();
         setInputText(text);
       } else {
-        throw new Error("Format de fitxer no suportat. Utilitza PDF, DOCX, TXT o MD.");
+        throw new Error("Format de fitxer no suportat.");
       }
     } catch (err) {
-      console.error("Error processant el fitxer:", err);
-      setError("No s'ha pogut processar el fitxer. Assegura't que el format és correcte.");
+      setError("No s'ha pogut processar el fitxer.");
     } finally {
       setIsParsing(false);
     }
@@ -77,18 +115,56 @@ const App: React.FC = () => {
     try {
       const extractedData = await extractLearningSituation(inputText);
       setResult(extractedData);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "S'ha produït un error inesperat.");
+    } catch (err: any) {
+      if (err.message && err.message.includes("Requested entity was not found")) {
+        setHasApiKey(false);
+        setError("La clau API ja no és vàlida. Torna a seleccionar-la.");
+      } else {
+        setError(err instanceof Error ? err.message : "S'ha produït un error inesperat.");
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
-  const reset = () => {
-    setResult(null);
-    setInputText('');
-    setError(null);
-  };
+  if (checkingKey) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="animate-pulse flex flex-col items-center gap-4">
+          <div className="h-12 w-12 bg-slate-200 rounded-full"></div>
+          <div className="h-4 w-32 bg-slate-200 rounded"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasApiKey) {
+    return (
+      <Layout>
+        <div className="max-w-md mx-auto mt-12 text-center p-8 bg-white rounded-2xl shadow-xl border border-slate-200">
+          <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold mb-4">Configuració necessària</h2>
+          <p className="text-slate-600 mb-8">
+            Per utilitzar el generador de Situacions d'Aprenentatge, cal connectar amb l'API de Gemini. 
+            Utilitza una clau d'un projecte amb facturació activa.
+          </p>
+          <button
+            onClick={handleOpenKeySelector}
+            className="w-full py-4 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition shadow-lg flex items-center justify-center gap-3"
+          >
+            Configurar clau API de Google
+          </button>
+          <p className="mt-4 text-xs text-slate-400">
+            Pots consultar la <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="underline">documentació sobre facturació</a>.
+          </p>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -96,30 +172,21 @@ const App: React.FC = () => {
         <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in duration-500">
           <div className="text-center space-y-3">
             <h2 className="text-3xl font-extrabold text-slate-900">Planifica la teva docència amb IA</h2>
-            <p className="text-slate-600">Puja el teu esborrany (PDF, DOCX, TXT) o enganxa les teves notes per generar la taula oficial de Situació d'Aprenentatge segons la LOMLOE.</p>
+            <p className="text-slate-600">Puja el teu esborrany o enganxa les teves notes per generar la taula oficial LOMLOE.</p>
           </div>
 
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-6">
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Opció 1: Puja un fitxer (PDF, DOCX, TXT, MD)</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Opció 1: Puja un fitxer</label>
               <div className="flex items-center justify-center w-full">
                 <label className={`flex flex-col items-center justify-center w-full h-32 border-2 border-slate-300 border-dashed rounded-lg cursor-pointer transition ${isParsing ? 'bg-slate-200 cursor-wait' : 'bg-slate-50 hover:bg-slate-100'}`}>
                   <div className="flex flex-col items-center justify-center pt-5 pb-6">
                     {isParsing ? (
-                      <div className="flex flex-col items-center gap-2">
-                        <svg className="animate-spin h-8 w-8 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        <p className="text-sm font-medium text-slate-600">Llegint el document...</p>
-                      </div>
+                      <p className="text-sm font-medium text-slate-600">Llegint el document...</p>
                     ) : (
                       <>
-                        <svg className="w-8 h-8 mb-4 text-slate-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
-                          <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/>
-                        </svg>
-                        <p className="mb-2 text-sm text-slate-500"><span className="font-semibold">Fes clic per pujar</span> o arrossega</p>
-                        <p className="text-xs text-slate-400">PDF, Word (.docx), Text o Markdown</p>
+                        <svg className="w-8 h-8 mb-4 text-slate-500" fill="none" viewBox="0 0 20 16"><path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/></svg>
+                        <p className="text-sm text-slate-500"><span className="font-semibold">Fes clic per pujar</span></p>
                       </>
                     )}
                   </div>
@@ -128,30 +195,17 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                <div className="w-full border-t border-slate-200"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-slate-400 uppercase font-medium">contingut extret o enganxat</span>
-              </div>
-            </div>
-
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">Text de la planificació</label>
               <textarea
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                placeholder="El text extret del document apareixerà aquí. També pots escriure directament..."
-                className="w-full h-64 p-4 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition resize-none text-slate-700 text-sm"
+                className="w-full h-64 p-4 border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 transition resize-none text-slate-700 text-sm"
               />
             </div>
 
             {error && (
               <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg flex items-center gap-3">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 10 2 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                </svg>
                 <span className="text-sm font-medium">{error}</span>
               </div>
             )}
@@ -162,49 +216,21 @@ const App: React.FC = () => {
               className={`w-full py-4 rounded-lg font-bold text-white shadow-md transition-all flex items-center justify-center gap-3 ${
                 isLoading || isParsing || !inputText.trim() 
                   ? 'bg-slate-300 cursor-not-allowed' 
-                  : 'bg-red-600 hover:bg-red-700 active:transform active:scale-95'
+                  : 'bg-red-600 hover:bg-red-700'
               }`}
             >
-              {isLoading ? (
-                <>
-                  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Analitzant contingut pedagògic...
-                </>
-              ) : (
-                <>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                  Generar Taula Oficial (LOMLOE)
-                </>
-              )}
+              {isLoading ? "Analitzant contingut..." : "Generar Taula Oficial (LOMLOE)"}
             </button>
           </div>
         </div>
       ) : (
-        <div className="space-y-6 animate-in slide-in-from-bottom-10 duration-700">
-          <div className="flex items-center justify-between no-print mb-4">
-            <button 
-              onClick={reset}
-              className="text-slate-500 hover:text-red-600 font-medium flex items-center gap-2 transition"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
-              </svg>
-              Tornar a començar
+        <div className="space-y-6">
+          <div className="flex items-center justify-between no-print">
+            <button onClick={() => setResult(null)} className="text-slate-500 hover:text-red-600 font-medium flex items-center gap-2 transition">
+              ← Tornar a començar
             </button>
-            <div className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold uppercase tracking-wider">
-              Generat correctament
-            </div>
           </div>
-          
-          <TableDisplay 
-            data={result} 
-            onEdit={(newData) => setResult(newData)} 
-          />
+          <TableDisplay data={result} onEdit={(newData) => setResult(newData)} />
         </div>
       )}
     </Layout>

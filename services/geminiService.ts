@@ -3,6 +3,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { SituacioAprenentatge } from "../types";
 
 export const extractLearningSituation = async (text: string): Promise<SituacioAprenentatge> => {
+  // Inicialització dins de la funció per obtenir la clau més recent
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const prompt = `Analitza el següent text de planificació i genera una Situació d'Aprenentatge seguint el model oficial de la Generalitat de Catalunya (LOMLOE). 
