@@ -3,7 +3,8 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { SituacioAprenentatge } from "../types";
 
 export const extractLearningSituation = async (text: string): Promise<SituacioAprenentatge> => {
-  // L'SDK utilitza la clau process.env.API_KEY configurada a l'entorn de l'aplicació.
+  // CRITICAL: Always create a new instance right before making the call 
+  // to ensure it uses the most up-to-date API key from the selection dialog or environment.
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const prompt = `Ets un assistent expert en la LOMLOE i el currículum de la Generalitat de Catalunya.
@@ -120,16 +121,13 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
     if (!jsonText) throw new Error("La IA no ha generat cap contingut.");
     return JSON.parse(jsonText) as SituacioAprenentatge;
   } catch (error: any) {
-    console.error("Gemini API Error:", error);
+    console.error("Gemini API Error details:", error);
     
-    let userMessage = "S'ha produït un error en generar la taula.";
-    
-    if (error.message?.includes("API key")) {
-      userMessage = "Error de configuració: La clau API no és vàlida o no s'ha trobat en aquest entorn (Netlify).";
-    } else if (error.message) {
-      userMessage = `Error de l'API: ${error.message}`;
+    // Si l'error és de l'SDK sobre la clau buida
+    if (error.message?.includes("API Key must be set") || error.message?.includes("403") || error.message?.includes("401")) {
+      throw new Error("Clau API no trobada o no vàlida. Torna a seleccionar-la per continuar.");
     }
     
-    throw new Error(userMessage);
+    throw new Error(error.message || "S'ha produït un error en la comunicació amb Gemini.");
   }
 };

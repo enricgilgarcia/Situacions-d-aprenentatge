@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { TableDisplay } from './components/TableDisplay';
 import { SituacioAprenentatge } from './types';
@@ -7,15 +7,52 @@ import { extractLearningSituation } from './services/geminiService';
 import * as mammoth from 'mammoth';
 import * as pdfjs from 'pdfjs-dist';
 
+// Declare global for AI Studio tools to resolve "must be of type AIStudio" and "identical modifiers" errors
+declare global {
+  interface AIStudio {
+    hasSelectedApiKey: () => Promise<boolean>;
+    openSelectKey: () => Promise<void>;
+  }
+  interface Window {
+    readonly aistudio: AIStudio;
+  }
+}
+
 // Configurar el worker de PDF.js des de CDN
 pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.mjs';
 
 const App: React.FC = () => {
+  const [hasKey, setHasKey] = useState<boolean>(true);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
   const [result, setResult] = useState<SituacioAprenentatge | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Comprovar si hi ha una clau seleccionada al carregar
+  useEffect(() => {
+    const checkKey = async () => {
+      // Si estem en un entorn on process.env.API_KEY ja existeix (com Google Studio), no cal el diàleg
+      if (process.env.API_KEY) {
+        setHasKey(true);
+        return;
+      }
+      
+      if (window.aistudio) {
+        const selected = await window.aistudio.hasSelectedApiKey();
+        setHasKey(selected);
+      }
+    };
+    checkKey();
+  }, []);
+
+  const handleOpenKeySelector = async () => {
+    if (window.aistudio) {
+      await window.aistudio.openSelectKey();
+      // Després de cridar el selector, assumim que l'usuari ha fet el procés
+      setHasKey(true);
+    }
+  };
 
   const extractTextFromPDF = async (arrayBuffer: ArrayBuffer): Promise<string> => {
     try {
@@ -57,8 +94,6 @@ const App: React.FC = () => {
       } else if (fileExtension === 'txt' || fileExtension === 'md') {
         const text = await file.text();
         setInputText(text);
-      } else {
-        throw new Error("Només s'admeten fitxers PDF, DOCX o TXT.");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error en processar el fitxer.");
@@ -80,11 +115,44 @@ const App: React.FC = () => {
       const extractedData = await extractLearningSituation(inputText);
       setResult(extractedData);
     } catch (err: any) {
-      setError(err instanceof Error ? err.message : "S'ha produït un error inesperat.");
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+      
+      // Si l'error diu que falta la clau, tornem a demanar selecció
+      if (msg.toLowerCase().includes("api key") || msg.toLowerCase().includes("not found")) {
+        setHasKey(false);
+      }
     } finally {
       setIsLoading(false);
     }
   };
+
+  if (!hasKey) {
+    return (
+      <Layout>
+        <div className="max-w-md mx-auto mt-20 p-8 bg-white rounded-2xl shadow-2xl border border-slate-200 text-center space-y-6">
+          <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-black text-slate-800">Connexió amb Gemini</h2>
+          <p className="text-slate-600">
+            Per poder generar les situacions d'aprenentatge amb IA, cal que connectis l'aplicació amb la teva clau de Google Cloud.
+          </p>
+          <div className="text-xs text-slate-400 bg-slate-50 p-3 rounded-lg border border-slate-100">
+            Pots obtenir una clau gratuïta a <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="text-red-600 underline">ai.google.dev</a>.
+          </div>
+          <button 
+            onClick={handleOpenKeySelector}
+            className="w-full py-4 bg-red-600 text-white rounded-xl font-bold uppercase tracking-widest hover:bg-red-700 transition-all shadow-lg active:scale-95"
+          >
+            Configurar Clau API
+          </button>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
