@@ -7,13 +7,11 @@ import { extractLearningSituation } from './services/geminiService';
 import * as mammoth from 'mammoth';
 import * as pdfjs from 'pdfjs-dist';
 
-// Declaració per a l'entorn de l'estudi
 declare global {
   interface AIStudio {
     hasSelectedApiKey: () => Promise<boolean>;
     openSelectKey: () => Promise<void>;
   }
-
   interface Window {
     aistudio?: AIStudio;
   }
@@ -68,20 +66,23 @@ const App: React.FC = () => {
       const data = await extractLearningSituation(inputText);
       setResult(data);
     } catch (err: any) {
-      console.error("Error capturat a App:", err);
-      const msg = err.message || "";
-      
-      if (msg.includes("API_KEY_MISSING") || msg.includes("AUTH_ERROR")) {
-        setError("Error d'autenticació: La clau API no està configurada correctament o no és vàlida per a aquest servei.");
+      const errMsg = err.message || "";
+      console.error("Error detectat:", errMsg);
+
+      // Si la clau falla o no es troba, obrim el selector automàticament
+      if (
+        errMsg.includes("API key") || 
+        errMsg.includes("403") || 
+        errMsg.includes("401") || 
+        errMsg.includes("not found") ||
+        errMsg.includes("API_KEY_MISSING")
+      ) {
+        setError("Cal configurar una clau API vàlida. Si us plau, selecciona-la al diàleg.");
         if (window.aistudio) {
           await window.aistudio.openSelectKey();
         }
-      } else if (msg.includes("404") || msg.includes("not found")) {
-        setError("Error de model: El model seleccionat (gemini-3-flash-preview) no està disponible per a aquesta clau.");
-      } else if (msg.includes("Quota") || msg.includes("429")) {
-        setError("Has superat la quota gratuïta. Espera uns minuts o revisa els límits del teu projecte.");
       } else {
-        setError(`S'ha produït un error: ${msg}`);
+        setError(`Error en la generació: ${errMsg}`);
       }
     } finally {
       setIsLoading(false);
@@ -91,92 +92,61 @@ const App: React.FC = () => {
   return (
     <Layout>
       {!result ? (
-        <div className="max-w-4xl mx-auto space-y-10 py-6 animate-in fade-in duration-700">
+        <div className="max-w-4xl mx-auto space-y-10 py-6">
           <div className="text-center space-y-4">
-            <div className="inline-block px-4 py-1.5 bg-red-100 text-red-700 rounded-full text-xs font-bold uppercase tracking-widest mb-2">
-              Currículum Catalunya
+            <div className="inline-block px-4 py-1.5 bg-red-100 text-red-700 rounded-full text-xs font-bold uppercase tracking-widest">
+              LOMLOE Catalunya
             </div>
-            <h2 className="text-4xl font-black text-slate-900 leading-tight tracking-tight">Generador de Situacions d'Aprenentatge</h2>
-            <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-              Crea la teva taula oficial LOMLOE en segons a partir d'esborranys o fitxers.
-            </p>
+            <h2 className="text-4xl font-black text-slate-900 leading-tight">Generador de Situacions d'Aprenentatge</h2>
+            <p className="text-lg text-slate-600">Planificació docent automàtica amb IA.</p>
           </div>
 
           <div className="bg-white p-8 rounded-2xl shadow-xl border border-slate-200 space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-3">
-                <label className="block text-sm font-bold text-slate-800 uppercase tracking-wide">1. Carregar document</label>
-                <label className={`flex flex-col items-center justify-center w-full h-32 border-2 border-slate-300 border-dashed rounded-xl cursor-pointer transition-all ${isParsing ? 'bg-slate-100' : 'bg-slate-50 hover:bg-white hover:border-red-500'}`}>
-                  <div className="flex flex-col items-center justify-center p-4">
-                    {isParsing ? (
-                      <div className="animate-spin h-6 w-6 border-2 border-red-600 border-t-transparent rounded-full"></div>
-                    ) : (
-                      <>
-                        <p className="text-sm font-bold text-slate-700 text-center">Tria un fitxer PDF, Word o Text</p>
-                        <p className="text-xs text-slate-400 mt-1">Extracció automàtica</p>
-                      </>
-                    )}
-                  </div>
-                  <input type="file" className="hidden" accept=".pdf,.docx,.txt" onChange={handleFileUpload} disabled={isParsing} />
-                </label>
-              </div>
-
-              <div className="bg-blue-50 p-5 rounded-xl border border-blue-100 flex items-center">
-                <p className="text-sm text-blue-800 leading-relaxed">
-                  <strong>Nota:</strong> Si et dóna error de clau a Netlify, assegura't que l'API de Gemini està activada al teu Google Cloud Console per a aquesta clau específica.
-                </p>
-              </div>
+            <div className="space-y-3">
+              <label className="block text-sm font-bold text-slate-800 uppercase tracking-wide">1. Importar document (Opcional)</label>
+              <input 
+                type="file" 
+                accept=".pdf,.docx,.txt" 
+                onChange={handleFileUpload}
+                className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100"
+              />
+              {isParsing && <p className="text-xs text-blue-600 animate-pulse font-bold">Llegint fitxer...</p>}
             </div>
 
             <div className="space-y-3">
-              <label className="block text-sm font-bold text-slate-800 uppercase tracking-wide">2. Descripció de la unitat</label>
+              <label className="block text-sm font-bold text-slate-800 uppercase tracking-wide">2. Descripció o esborrany</label>
               <textarea
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                placeholder="Exemple: Treballarem l'ecosistema marí amb alumnes de 4t de primària..."
-                className="w-full h-64 p-5 border border-slate-300 rounded-xl focus:ring-4 focus:ring-red-100 focus:border-red-500 transition-all resize-none text-slate-700 text-base"
+                placeholder="Escriu aquí el que vols treballar..."
+                className="w-full h-64 p-5 border border-slate-300 rounded-xl focus:ring-4 focus:ring-red-100 focus:border-red-500 transition-all text-slate-700"
               />
             </div>
 
             {error && (
-              <div className="p-4 bg-red-50 border-l-4 border-red-500 text-red-800 rounded-lg flex items-start gap-3 shadow-sm">
-                <svg className="h-5 w-5 shrink-0 text-red-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-                <div className="text-sm">
-                  <p className="font-bold">Error detectat</p>
-                  <p className="opacity-90">{error}</p>
-                </div>
+              <div className="p-4 bg-red-50 border-l-4 border-red-500 text-red-800 rounded flex gap-3">
+                <div className="text-sm font-medium">{error}</div>
               </div>
             )}
 
             <button
               onClick={handleGenerate}
               disabled={isLoading || isParsing || !inputText.trim()}
-              className={`w-full py-5 rounded-xl font-black text-lg uppercase tracking-widest shadow-lg transition-all flex items-center justify-center gap-4 ${
-                isLoading || isParsing || !inputText.trim() 
-                  ? 'bg-slate-300 text-slate-500 cursor-not-allowed' 
-                  : 'bg-red-600 text-white hover:bg-red-700 active:scale-95'
-              }`}
+              className="w-full py-5 bg-red-600 text-white rounded-xl font-black text-lg uppercase tracking-widest shadow-lg hover:bg-red-700 disabled:bg-slate-300 transition-all flex items-center justify-center gap-4"
             >
-              {isLoading ? (
-                <>
-                  <div className="animate-spin h-6 w-6 border-4 border-white border-t-transparent rounded-full"></div>
-                  Processant amb Gemini...
-                </>
-              ) : "Generar Taula Oficial"}
+              {isLoading ? "Processant amb Gemini..." : "Generar Taula Oficial"}
             </button>
           </div>
         </div>
       ) : (
         <div className="space-y-6">
-          <div className="flex items-center justify-between no-print bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-            <button onClick={() => setResult(null)} className="flex items-center gap-2 font-bold text-slate-600 hover:text-red-600 transition-colors">
+          <div className="flex items-center justify-between no-print bg-white p-4 rounded-xl border border-slate-200">
+            <button onClick={() => setResult(null)} className="font-bold text-slate-600 hover:text-red-600">
               ← Tornar a l'editor
             </button>
-            <div className="text-xs text-slate-400 font-medium italic">Taula generada mitjançant IA gemini-3-flash</div>
+            <div className="text-xs text-slate-400 italic">Generat amb gemini-3-flash</div>
           </div>
-          <TableDisplay data={result} onEdit={(newData) => setResult(newData)} />
+          <TableDisplay data={result} onEdit={setResult} />
         </div>
       )}
     </Layout>

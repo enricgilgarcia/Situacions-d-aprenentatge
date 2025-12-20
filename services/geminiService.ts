@@ -6,15 +6,11 @@ import { SituacioAprenentatge } from "../types";
  * Extract a structured educational learning situation from raw text using Gemini.
  */
 export const extractLearningSituation = async (text: string): Promise<SituacioAprenentatge> => {
-  // Obtenim la clau de l'entorn
+  // Intentem obtenir la clau del procés
   const apiKey = process.env.API_KEY;
   
-  if (!apiKey || apiKey === "") {
-    throw new Error("API_KEY_MISSING");
-  }
-
-  // Creem la instància de l'API amb la clau configurada
-  const ai = new GoogleGenAI({ apiKey });
+  // No bloquegem aquí, deixem que l'SDK intenti la connexió o falli amb un error que puguem capturar
+  const ai = new GoogleGenAI({ apiKey: apiKey || "" });
   
   const prompt = `Ets un assistent expert en la LOMLOE i el currículum de la Generalitat de Catalunya.
   Analitza el següent text i genera una Situació d'Aprenentatge oficial en format JSON seguint el model de la Generalitat.
@@ -30,7 +26,7 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview", // Model més compatible i ràpid
+      model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -122,20 +118,9 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
       },
     });
 
-    if (!response.text) {
-      throw new Error("La IA ha retornat una resposta buida.");
-    }
-
-    return JSON.parse(response.text) as SituacioAprenentatge;
+    return JSON.parse(response.text || "{}") as SituacioAprenentatge;
   } catch (error: any) {
-    // Registrem l'error detallat a la consola per debugging
-    console.error("Detalls de l'error Gemini:", error);
-    
-    // Si l'error és un JSON de l'API (típic de 400/403/404)
-    if (error.status === 403 || error.status === 401) {
-      throw new Error("AUTH_ERROR: La clau API no és vàlida o no té permisos.");
-    }
-    
+    console.error("Gemini Error:", error);
     throw error;
   }
 };
