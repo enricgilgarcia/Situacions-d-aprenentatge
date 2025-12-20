@@ -2,28 +2,17 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { SituacioAprenentatge } from "../types";
 
+// Always create a new GoogleGenAI instance right before making an API call 
+// to ensure it always uses the most up-to-date API key from the environment.
 export const extractLearningSituation = async (text: string): Promise<SituacioAprenentatge> => {
-  // Intentem capturar la clau de diverses maneres possibles en entorns web
-  let apiKey: string | undefined;
-  
-  try {
-    apiKey = process.env.API_KEY || (window as any)._env_?.API_KEY;
-  } catch (e) {
-    console.error("No es pot accedir a process.env", e);
-  }
-
-  if (!apiKey || apiKey === "undefined" || apiKey.length < 10) {
-    throw new Error(`ERROR_CONFIGURACIO: La clau API no s'ha trobat o és massa curta. Valor actual: ${apiKey ? 'Detectada però incompleta' : 'undefined'}. Recorda fer 'Clear cache and deploy' a Netlify.`);
-  }
-
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const prompt = `Ets un expert en programació LOMLOE a Catalunya. 
   Genera una Situació d'Aprenentatge en format JSON estricte per a: "${text}"`;
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3-pro-preview", // Use gemini-3-pro-preview for complex educational planning tasks
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -115,7 +104,11 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
       },
     });
 
-    return JSON.parse(response.text || "{}") as SituacioAprenentatge;
+    // Access the .text property directly instead of calling it as a method.
+    const textResponse = response.text;
+    if (!textResponse) throw new Error("No s'ha rebut cap resposta textual del model.");
+    
+    return JSON.parse(textResponse.trim()) as SituacioAprenentatge;
   } catch (err: any) {
     console.error("Error detallat de l'API:", err);
     throw new Error(`API_GOOGLE_ERROR: ${err.message || "Error en la comunicació amb Gemini"}`);
