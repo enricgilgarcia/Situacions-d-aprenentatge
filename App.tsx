@@ -7,6 +7,19 @@ import { extractLearningSituation } from './services/geminiService';
 import * as mammoth from 'mammoth';
 import * as pdfjs from 'pdfjs-dist';
 
+// Declaració per a l'entorn de l'estudi
+declare global {
+  // Define AIStudio interface to match environmental type requirements
+  interface AIStudio {
+    hasSelectedApiKey: () => Promise<boolean>;
+    openSelectKey: () => Promise<void>;
+  }
+
+  interface Window {
+    aistudio?: AIStudio;
+  }
+}
+
 pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.mjs';
 
 const App: React.FC = () => {
@@ -53,22 +66,35 @@ const App: React.FC = () => {
     setError(null);
 
     try {
-      // Intentem la generació. Si falla per falta de clau, el servei ho gestionarà o demanarà acció.
+      // Check if API key is present in environment, otherwise prompt for selection
+      if (!process.env.API_KEY || process.env.API_KEY === "") {
+        if (window.aistudio) {
+          const hasKey = await window.aistudio.hasSelectedApiKey();
+          if (!hasKey) {
+            await window.aistudio.openSelectKey();
+            // Assume the key selection was successful after triggering openSelectKey()
+          }
+        }
+      }
+
       const data = await extractLearningSituation(inputText);
       setResult(data);
     } catch (err: any) {
       console.error("Error durant la generació:", err);
       
-      // Si l'error és de clau i estem a l'entorn de l'estudi, obrim el selector
-      if (err.message === "API_KEY_MISSING" || err.message?.includes("API key")) {
+      // Handle key-related errors including "Requested entity was not found." as per guidelines
+      if (
+        err.message === "API_KEY_MISSING" || 
+        err.message?.includes("API key") || 
+        err.message?.includes("key") || 
+        err.message?.includes("Requested entity was not found")
+      ) {
         if (window.aistudio) {
-          setError("Cal seleccionar una clau API. S'està obrint el selector...");
+          setError("No s'ha detectat cap clau API vàlida. Si us plau, selecciona-la al diàleg.");
           await window.aistudio.openSelectKey();
-          setError(null);
-          setIsLoading(false);
-          return;
+        } else {
+          setError("Configuració pendent: No s'ha trobat la clau API. Assegura't d'haver configurat la variable API_KEY.");
         }
-        setError("La clau API no està configurada correctament.");
       } else {
         setError(err.message || "S'ha produït un error inesperat.");
       }
