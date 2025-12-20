@@ -2,24 +2,24 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { SituacioAprenentatge } from "../types";
 
-/**
- * Genera la programació educativa utilitzant l'API de Gemini.
- * Aquesta funció depèn exclusivament de la variable d'entorn API_KEY.
- */
 export const extractLearningSituation = async (text: string): Promise<SituacioAprenentatge> => {
-  const apiKey = process.env.API_KEY;
+  // Intentem capturar la clau de diverses maneres possibles en entorns web
+  let apiKey: string | undefined;
   
-  if (!apiKey || apiKey === "undefined") {
-    throw new Error("CONFIG_ERROR: La clau API no arriba al navegador. Si estàs a Netlify, recorda fer un 'Clear cache and deploy site' després d'afegir la variable.");
+  try {
+    apiKey = process.env.API_KEY || (window as any)._env_?.API_KEY;
+  } catch (e) {
+    console.error("No es pot accedir a process.env", e);
+  }
+
+  if (!apiKey || apiKey === "undefined" || apiKey.length < 10) {
+    throw new Error(`ERROR_CONFIGURACIO: La clau API no s'ha trobat o és massa curta. Valor actual: ${apiKey ? 'Detectada però incompleta' : 'undefined'}. Recorda fer 'Clear cache and deploy' a Netlify.`);
   }
 
   const ai = new GoogleGenAI({ apiKey });
   
-  const prompt = `Ets un assessor pedagògic expert en la LOMLOE a Catalunya.
-  Genera una Situació d'Aprenentatge en format JSON basada en aquest text:
-  "${text}"
-  
-  IMPORTANT: Omple tots els camps (Objectius, Activitats, Sabers, Criteris) de forma professional segons el currículum actual.`;
+  const prompt = `Ets un expert en programació LOMLOE a Catalunya. 
+  Genera una Situació d'Aprenentatge en format JSON estricte per a: "${text}"`;
 
   try {
     const response = await ai.models.generateContent({
@@ -115,14 +115,9 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
       },
     });
 
-    if (!response.text) {
-      throw new Error("L'IA ha tornat una resposta buida.");
-    }
-
-    return JSON.parse(response.text) as SituacioAprenentatge;
+    return JSON.parse(response.text || "{}") as SituacioAprenentatge;
   } catch (err: any) {
-    // Passem l'error original perquè l'usuari el pugui veure
-    const message = err.message || "Error desconegut de l'API de Google";
-    throw new Error(`GEMINI_API_ERROR: ${message}`);
+    console.error("Error detallat de l'API:", err);
+    throw new Error(`API_GOOGLE_ERROR: ${err.message || "Error en la comunicació amb Gemini"}`);
   }
 };
