@@ -2,8 +2,13 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { SituacioAprenentatge } from "../types";
 
+/**
+ * Extract a structured educational learning situation from raw text using Gemini 3 Pro.
+ * Follows the latest @google/genai SDK guidelines for content generation.
+ */
 export const extractLearningSituation = async (text: string): Promise<SituacioAprenentatge> => {
-  // Inicialització directa segons les directrius de l'SDK
+  // Always create a new GoogleGenAI instance right before making an API call 
+  // to ensure it always uses the most up-to-date API key from the environment/dialog.
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const prompt = `Ets un assistent expert en la LOMLOE i el currículum de la Generalitat de Catalunya.
@@ -22,7 +27,7 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-pro-preview",
-      contents: [{ parts: [{ text: prompt }] }],
+      contents: prompt,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -118,7 +123,7 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
 
     const jsonText = response.text;
     if (!jsonText) throw new Error("La IA no ha generat cap contingut.");
-    return JSON.parse(jsonText) as SituacioAprenentatge;
+    return JSON.parse(jsonText.trim()) as SituacioAprenentatge;
   } catch (error: any) {
     console.error("Gemini API Error:", error);
     throw new Error(error.message || "Error en la comunicació amb Gemini.");

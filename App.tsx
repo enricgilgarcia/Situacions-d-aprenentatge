@@ -7,7 +7,17 @@ import { extractLearningSituation } from './services/geminiService';
 import * as mammoth from 'mammoth';
 import * as pdfjs from 'pdfjs-dist';
 
-// Configurar el worker de PDF.js
+// Define the global window.aistudio property with an optional modifier to avoid declaration conflicts
+// as specified in the Gemini API integration guidelines for API key selection.
+declare global {
+  interface Window {
+    aistudio?: {
+      hasSelectedApiKey: () => Promise<boolean>;
+      openSelectKey: () => Promise<void>;
+    };
+  }
+}
+
 pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.mjs';
 
 const App: React.FC = () => {
@@ -56,11 +66,28 @@ const App: React.FC = () => {
     if (!inputText.trim()) return;
     setIsLoading(true);
     setError(null);
+
     try {
+      // Check for API key selection using the provided AI Studio tools.
+      // We assume key selection is successful after triggering the dialog to avoid race conditions.
+      if (window.aistudio) {
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        if (!hasKey) {
+          await window.aistudio.openSelectKey();
+        }
+      }
+
       const data = await extractLearningSituation(inputText);
       setResult(data);
     } catch (err: any) {
-      setError(err.message || "S'ha produït un error inesperat.");
+      console.error("Error durant la generació:", err);
+      // If the request fails with "Requested entity was not found", it indicates a missing or invalid API key.
+      if (err.message?.includes("API key") || err.message?.includes("not found") || err.message?.includes("Requested entity was not found")) {
+        setError("Cal una clau API activa. Si us plau, torna-ho a intentar i selecciona un projecte amb facturació si se't demana.");
+        if (window.aistudio) await window.aistudio.openSelectKey();
+      } else {
+        setError(err.message || "S'ha produït un error inesperat.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -137,7 +164,7 @@ const App: React.FC = () => {
               {isLoading ? (
                 <>
                   <div className="animate-spin h-6 w-6 border-4 border-white border-t-transparent rounded-full"></div>
-                  Processant Currículum...
+                  Generant Taula...
                 </>
               ) : "Generar Taula Oficial"}
             </button>

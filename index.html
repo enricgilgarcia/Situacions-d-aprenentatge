@@ -8,9 +8,9 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
-    <!-- Polyfill for process.env -->
+    <!-- Polyfill minimalista sense valors per defecte que interfereixin -->
     <script>
-      window.process = window.process || { env: { API_KEY: "" } };
+      window.process = window.process || { env: {} };
     </script>
 
     <!-- Llibreria per exportar a PDF -->
