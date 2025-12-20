@@ -2,17 +2,18 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { SituacioAprenentatge } from "../types";
 
-// Always create a new GoogleGenAI instance right before making an API call 
-// to ensure it always uses the most up-to-date API key from the environment.
 export const extractLearningSituation = async (text: string): Promise<SituacioAprenentatge> => {
+  // Inicialització directa segons les guies de l'SDK
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  const prompt = `Ets un expert en programació LOMLOE a Catalunya. 
-  Genera una Situació d'Aprenentatge en format JSON estricte per a: "${text}"`;
+  const prompt = `Ets un expert en programació LOMLOE a Catalunya (Departament d'Educació). 
+  A partir del següent text, genera una Situació d'Aprenentatge completa en format JSON estricte seguint el model oficial.
+  
+  Text d'entrada: "${text}"`;
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview", // Use gemini-3-pro-preview for complex educational planning tasks
+      model: "gemini-3-flash-preview", // Model equilibrat per a tasques de text i raonament
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -104,13 +105,12 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
       },
     });
 
-    // Access the .text property directly instead of calling it as a method.
     const textResponse = response.text;
-    if (!textResponse) throw new Error("No s'ha rebut cap resposta textual del model.");
+    if (!textResponse) throw new Error("No s'ha obtingut resposta textual.");
     
     return JSON.parse(textResponse.trim()) as SituacioAprenentatge;
   } catch (err: any) {
-    console.error("Error detallat de l'API:", err);
-    throw new Error(`API_GOOGLE_ERROR: ${err.message || "Error en la comunicació amb Gemini"}`);
+    console.error("Error API:", err);
+    throw new Error(err.message || "Error en la comunicació amb el servei d'IA.");
   }
 };
