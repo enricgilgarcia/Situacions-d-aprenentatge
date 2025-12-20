@@ -6,14 +6,14 @@ import { SituacioAprenentatge } from "../types";
  * Extract a structured educational learning situation from raw text using Gemini.
  */
 export const extractLearningSituation = async (text: string): Promise<SituacioAprenentatge> => {
-  // Obtenim la clau directament de l'entorn en el moment de la crida
+  // Obtenim la clau de l'entorn
   const apiKey = process.env.API_KEY;
   
-  if (!apiKey) {
+  if (!apiKey || apiKey === "") {
     throw new Error("API_KEY_MISSING");
   }
 
-  // Creem la instància de l'API just abans d'usar-la
+  // Creem la instància de l'API amb la clau configurada
   const ai = new GoogleGenAI({ apiKey });
   
   const prompt = `Ets un assistent expert en la LOMLOE i el currículum de la Generalitat de Catalunya.
@@ -30,7 +30,7 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
+      model: "gemini-3-flash-preview", // Model més compatible i ràpid
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -122,9 +122,20 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
       },
     });
 
-    return JSON.parse(response.text || "{}") as SituacioAprenentatge;
+    if (!response.text) {
+      throw new Error("La IA ha retornat una resposta buida.");
+    }
+
+    return JSON.parse(response.text) as SituacioAprenentatge;
   } catch (error: any) {
-    console.error("Gemini API Error details:", error);
+    // Registrem l'error detallat a la consola per debugging
+    console.error("Detalls de l'error Gemini:", error);
+    
+    // Si l'error és un JSON de l'API (típic de 400/403/404)
+    if (error.status === 403 || error.status === 401) {
+      throw new Error("AUTH_ERROR: La clau API no és vàlida o no té permisos.");
+    }
+    
     throw error;
   }
 };

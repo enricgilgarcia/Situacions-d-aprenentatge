@@ -65,30 +65,23 @@ const App: React.FC = () => {
     setError(null);
 
     try {
-      // Intentem generar. Si process.env.API_KEY és buit o incorrecte, saltarà l'error al catch.
       const data = await extractLearningSituation(inputText);
       setResult(data);
     } catch (err: any) {
-      const errMsg = err.message || "";
-      console.error("Error capturat:", errMsg);
+      console.error("Error capturat a App:", err);
+      const msg = err.message || "";
       
-      // Si l'error suggereix problemes de clau o si el projecte no es troba
-      if (
-        errMsg.includes("API_KEY_MISSING") || 
-        errMsg.includes("API key") || 
-        errMsg.includes("403") || 
-        errMsg.includes("401") ||
-        errMsg.includes("Requested entity was not found")
-      ) {
+      if (msg.includes("API_KEY_MISSING") || msg.includes("AUTH_ERROR")) {
+        setError("Error d'autenticació: La clau API no està configurada correctament o no és vàlida per a aquest servei.");
         if (window.aistudio) {
-          setError("Problema amb la clau API. Si us plau, selecciona una clau d'un projecte vàlid amb facturació habilitada.");
           await window.aistudio.openSelectKey();
-          // Després d'obrir el selector, deixem que l'usuari torni a clicar el botó
-        } else {
-          setError("No s'ha trobat la clau API. Revisa la configuració de l'entorn.");
         }
+      } else if (msg.includes("404") || msg.includes("not found")) {
+        setError("Error de model: El model seleccionat (gemini-3-flash-preview) no està disponible per a aquesta clau.");
+      } else if (msg.includes("Quota") || msg.includes("429")) {
+        setError("Has superat la quota gratuïta. Espera uns minuts o revisa els límits del teu projecte.");
       } else {
-        setError("Error en la generació: " + (errMsg || "Torna-ho a provar en uns instants."));
+        setError(`S'ha produït un error: ${msg}`);
       }
     } finally {
       setIsLoading(false);
@@ -110,7 +103,6 @@ const App: React.FC = () => {
           </div>
 
           <div className="bg-white p-8 rounded-2xl shadow-xl border border-slate-200 space-y-8">
-            {/* Secció de Càrrega */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-3">
                 <label className="block text-sm font-bold text-slate-800 uppercase tracking-wide">1. Carregar document</label>
@@ -131,36 +123,33 @@ const App: React.FC = () => {
 
               <div className="bg-blue-50 p-5 rounded-xl border border-blue-100 flex items-center">
                 <p className="text-sm text-blue-800 leading-relaxed">
-                  <strong>Important:</strong> Assegura't de seleccionar una clau API d'un projecte de Google Cloud amb l'API de Gemini habilitada si apareix el diàleg.
+                  <strong>Nota:</strong> Si et dóna error de clau a Netlify, assegura't que l'API de Gemini està activada al teu Google Cloud Console per a aquesta clau específica.
                 </p>
               </div>
             </div>
 
-            {/* Àrea de Text */}
             <div className="space-y-3">
               <label className="block text-sm font-bold text-slate-800 uppercase tracking-wide">2. Descripció de la unitat</label>
               <textarea
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                placeholder="Exemple: Treballarem l'ecosistema marí amb alumnes de 4t de primària. Visitarem el port, farem un mural..."
+                placeholder="Exemple: Treballarem l'ecosistema marí amb alumnes de 4t de primària..."
                 className="w-full h-64 p-5 border border-slate-300 rounded-xl focus:ring-4 focus:ring-red-100 focus:border-red-500 transition-all resize-none text-slate-700 text-base"
               />
             </div>
 
-            {/* Errors */}
             {error && (
-              <div className="p-4 bg-red-50 border-l-4 border-red-500 text-red-800 rounded-lg flex items-start gap-3">
+              <div className="p-4 bg-red-50 border-l-4 border-red-500 text-red-800 rounded-lg flex items-start gap-3 shadow-sm">
                 <svg className="h-5 w-5 shrink-0 text-red-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
                 <div className="text-sm">
-                  <p className="font-bold">Error de configuració</p>
+                  <p className="font-bold">Error detectat</p>
                   <p className="opacity-90">{error}</p>
                 </div>
               </div>
             )}
 
-            {/* Botó Acció */}
             <button
               onClick={handleGenerate}
               disabled={isLoading || isParsing || !inputText.trim()}
@@ -173,7 +162,7 @@ const App: React.FC = () => {
               {isLoading ? (
                 <>
                   <div className="animate-spin h-6 w-6 border-4 border-white border-t-transparent rounded-full"></div>
-                  Processant amb IA...
+                  Processant amb Gemini...
                 </>
               ) : "Generar Taula Oficial"}
             </button>
@@ -185,7 +174,7 @@ const App: React.FC = () => {
             <button onClick={() => setResult(null)} className="flex items-center gap-2 font-bold text-slate-600 hover:text-red-600 transition-colors">
               ← Tornar a l'editor
             </button>
-            <div className="text-xs text-slate-400 font-medium">Revisa les dades abans d'exportar</div>
+            <div className="text-xs text-slate-400 font-medium italic">Taula generada mitjançant IA gemini-3-flash</div>
           </div>
           <TableDisplay data={result} onEdit={(newData) => setResult(newData)} />
         </div>
