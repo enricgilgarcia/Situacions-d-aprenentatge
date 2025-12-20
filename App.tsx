@@ -9,7 +9,6 @@ import * as pdfjs from 'pdfjs-dist';
 
 // Declaració per a l'entorn de l'estudi
 declare global {
-  // Define AIStudio interface to match environmental type requirements
   interface AIStudio {
     hasSelectedApiKey: () => Promise<boolean>;
     openSelectKey: () => Promise<void>;
@@ -66,37 +65,30 @@ const App: React.FC = () => {
     setError(null);
 
     try {
-      // Check if API key is present in environment, otherwise prompt for selection
-      if (!process.env.API_KEY || process.env.API_KEY === "") {
-        if (window.aistudio) {
-          const hasKey = await window.aistudio.hasSelectedApiKey();
-          if (!hasKey) {
-            await window.aistudio.openSelectKey();
-            // Assume the key selection was successful after triggering openSelectKey()
-          }
-        }
-      }
-
+      // Intentem generar. Si process.env.API_KEY és buit o incorrecte, saltarà l'error al catch.
       const data = await extractLearningSituation(inputText);
       setResult(data);
     } catch (err: any) {
-      console.error("Error durant la generació:", err);
+      const errMsg = err.message || "";
+      console.error("Error capturat:", errMsg);
       
-      // Handle key-related errors including "Requested entity was not found." as per guidelines
+      // Si l'error suggereix problemes de clau o si el projecte no es troba
       if (
-        err.message === "API_KEY_MISSING" || 
-        err.message?.includes("API key") || 
-        err.message?.includes("key") || 
-        err.message?.includes("Requested entity was not found")
+        errMsg.includes("API_KEY_MISSING") || 
+        errMsg.includes("API key") || 
+        errMsg.includes("403") || 
+        errMsg.includes("401") ||
+        errMsg.includes("Requested entity was not found")
       ) {
         if (window.aistudio) {
-          setError("No s'ha detectat cap clau API vàlida. Si us plau, selecciona-la al diàleg.");
+          setError("Problema amb la clau API. Si us plau, selecciona una clau d'un projecte vàlid amb facturació habilitada.");
           await window.aistudio.openSelectKey();
+          // Després d'obrir el selector, deixem que l'usuari torni a clicar el botó
         } else {
-          setError("Configuració pendent: No s'ha trobat la clau API. Assegura't d'haver configurat la variable API_KEY.");
+          setError("No s'ha trobat la clau API. Revisa la configuració de l'entorn.");
         }
       } else {
-        setError(err.message || "S'ha produït un error inesperat.");
+        setError("Error en la generació: " + (errMsg || "Torna-ho a provar en uns instants."));
       }
     } finally {
       setIsLoading(false);
@@ -118,6 +110,7 @@ const App: React.FC = () => {
           </div>
 
           <div className="bg-white p-8 rounded-2xl shadow-xl border border-slate-200 space-y-8">
+            {/* Secció de Càrrega */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-3">
                 <label className="block text-sm font-bold text-slate-800 uppercase tracking-wide">1. Carregar document</label>
@@ -138,11 +131,12 @@ const App: React.FC = () => {
 
               <div className="bg-blue-50 p-5 rounded-xl border border-blue-100 flex items-center">
                 <p className="text-sm text-blue-800 leading-relaxed">
-                  <strong>Consell:</strong> Pots enganxar els teus apunts o carregar un document. La IA emplenarà la resta.
+                  <strong>Important:</strong> Assegura't de seleccionar una clau API d'un projecte de Google Cloud amb l'API de Gemini habilitada si apareix el diàleg.
                 </p>
               </div>
             </div>
 
+            {/* Àrea de Text */}
             <div className="space-y-3">
               <label className="block text-sm font-bold text-slate-800 uppercase tracking-wide">2. Descripció de la unitat</label>
               <textarea
@@ -153,15 +147,20 @@ const App: React.FC = () => {
               />
             </div>
 
+            {/* Errors */}
             {error && (
-              <div className="p-4 bg-red-50 border-l-4 border-red-500 text-red-800 rounded-lg flex items-center gap-3">
-                <svg className="h-6 w-6 shrink-0 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="p-4 bg-red-50 border-l-4 border-red-500 text-red-800 rounded-lg flex items-start gap-3">
+                <svg className="h-5 w-5 shrink-0 text-red-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
-                <span className="text-sm font-bold">{error}</span>
+                <div className="text-sm">
+                  <p className="font-bold">Error de configuració</p>
+                  <p className="opacity-90">{error}</p>
+                </div>
               </div>
             )}
 
+            {/* Botó Acció */}
             <button
               onClick={handleGenerate}
               disabled={isLoading || isParsing || !inputText.trim()}
@@ -174,7 +173,7 @@ const App: React.FC = () => {
               {isLoading ? (
                 <>
                   <div className="animate-spin h-6 w-6 border-4 border-white border-t-transparent rounded-full"></div>
-                  Generant Taula...
+                  Processant amb IA...
                 </>
               ) : "Generar Taula Oficial"}
             </button>
@@ -184,8 +183,9 @@ const App: React.FC = () => {
         <div className="space-y-6">
           <div className="flex items-center justify-between no-print bg-white p-4 rounded-xl shadow-sm border border-slate-200">
             <button onClick={() => setResult(null)} className="flex items-center gap-2 font-bold text-slate-600 hover:text-red-600 transition-colors">
-              ← Nova planificació
+              ← Tornar a l'editor
             </button>
+            <div className="text-xs text-slate-400 font-medium">Revisa les dades abans d'exportar</div>
           </div>
           <TableDisplay data={result} onEdit={(newData) => setResult(newData)} />
         </div>

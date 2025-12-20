@@ -6,13 +6,14 @@ import { SituacioAprenentatge } from "../types";
  * Extract a structured educational learning situation from raw text using Gemini.
  */
 export const extractLearningSituation = async (text: string): Promise<SituacioAprenentatge> => {
+  // Obtenim la clau directament de l'entorn en el moment de la crida
   const apiKey = process.env.API_KEY;
   
-  if (!apiKey || apiKey === "") {
+  if (!apiKey) {
     throw new Error("API_KEY_MISSING");
   }
 
-  // Create a new instance right before the call to ensure it uses the current key
+  // Creem la instància de l'API just abans d'usar-la
   const ai = new GoogleGenAI({ apiKey });
   
   const prompt = `Ets un assistent expert en la LOMLOE i el currículum de la Generalitat de Catalunya.
@@ -123,7 +124,7 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
 
     return JSON.parse(response.text || "{}") as SituacioAprenentatge;
   } catch (error: any) {
-    console.error("Gemini API Error:", error);
+    console.error("Gemini API Error details:", error);
     throw error;
   }
 };
