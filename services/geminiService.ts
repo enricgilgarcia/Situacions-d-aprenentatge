@@ -4,25 +4,25 @@ import { SituacioAprenentatge } from "../types";
 
 /**
  * Extract a structured educational learning situation from raw text using Gemini.
- * Handles API key missing error gracefully before calling SDK.
  */
 export const extractLearningSituation = async (text: string): Promise<SituacioAprenentatge> => {
-  if (!process.env.API_KEY || process.env.API_KEY === "") {
+  // Use process.env.API_KEY directly as provided by the environment.
+  const apiKey = process.env.API_KEY;
+  
+  if (!apiKey) {
     throw new Error("API_KEY_MISSING");
   }
 
-  // Always use a new instance with the current API key from environment
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey });
   
   const prompt = `Ets un assistent expert en la LOMLOE i el currículum de la Generalitat de Catalunya.
-  Analitza el següent text i genera una Situació d'Aprenentatge oficial en format JSON.
+  Analitza el següent text i genera una Situació d'Aprenentatge oficial en format JSON seguint el model de la Generalitat.
   
   IMPORTANT: 
-  - Títol: Ha de ser significatiu.
-  - Objectius: Estructura "Verbe infinitiu + Saber + Finalitat".
-  - Criteris: Estructura "Acció observable + Context".
+  - Títol: Significatiu i engrescador.
+  - Objectius: Estructura "Infinitiu + Saber + Finalitat".
   - Fases: Omple les 4 fases d'activitats (Inicial, Desenvolupament, Estructuració, Aplicació).
-  - Si falta informació al text, inventa contingut pedagògicament coherent per al curs i matèria detectats.
+  - Si falta informació al text, inventa-la perquè sigui pedagògicament coherent.
 
   TEXT A ANALITZAR:
   ${text}`;
@@ -63,8 +63,7 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
                     properties: {
                       descripcio: { type: Type.STRING },
                       area_materia: { type: Type.STRING }
-                    },
-                    required: ["descripcio", "area_materia"]
+                    }
                   }
                 },
                 objectius: { type: Type.ARRAY, items: { type: Type.STRING } },
@@ -76,8 +75,7 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
                     properties: {
                       saber: { type: Type.STRING },
                       area_materia: { type: Type.STRING }
-                    },
-                    required: ["saber", "area_materia"]
+                    }
                   }
                 }
               },
@@ -94,8 +92,7 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
                     desenvolupament: { type: Type.STRING },
                     estructuracio: { type: Type.STRING },
                     aplicacio: { type: Type.STRING }
-                  },
-                  required: ["inicials", "desenvolupament", "estructuracio", "aplicacio"]
+                  }
                 }
               },
               required: ["estrategies_materials", "activitats"]
@@ -124,12 +121,9 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
       },
     });
 
-    const jsonText = response.text;
-    if (!jsonText) throw new Error("La IA no ha generat cap contingut.");
-    return JSON.parse(jsonText.trim()) as SituacioAprenentatge;
+    return JSON.parse(response.text || "{}") as SituacioAprenentatge;
   } catch (error: any) {
     console.error("Gemini API Error:", error);
-    // Propaguem l'error per gestionar-lo a la UI
     throw error;
   }
 };

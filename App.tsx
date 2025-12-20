@@ -1,18 +1,11 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Layout } from './components/Layout';
 import { TableDisplay } from './components/TableDisplay';
 import { SituacioAprenentatge } from './types';
 import { extractLearningSituation } from './services/geminiService';
 import * as mammoth from 'mammoth';
 import * as pdfjs from 'pdfjs-dist';
-
-declare global {
-  interface Window {
-    // Use the global AIStudio type to avoid conflict with existing declarations as indicated by the compiler error
-    aistudio: AIStudio;
-  }
-}
 
 pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.mjs';
 
@@ -22,27 +15,6 @@ const App: React.FC = () => {
   const [isParsing, setIsParsing] = useState(false);
   const [result, setResult] = useState<SituacioAprenentatge | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [hasKey, setHasKey] = useState<boolean>(!!process.env.API_KEY);
-
-  useEffect(() => {
-    const checkKey = async () => {
-      if (process.env.API_KEY) {
-        setHasKey(true);
-      } else if (window.aistudio) {
-        const selected = await window.aistudio.hasSelectedApiKey();
-        setHasKey(selected);
-      }
-    };
-    checkKey();
-  }, []);
-
-  const handleOpenKeySelector = async () => {
-    if (window.aistudio) {
-      await window.aistudio.openSelectKey();
-      setHasKey(true); // Assumim èxit per evitar race conditions
-      setError(null);
-    }
-  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -52,8 +24,16 @@ const App: React.FC = () => {
     try {
       const ext = file.name.split('.').pop()?.toLowerCase();
       if (ext === 'pdf') {
-        const text = await extractTextFromPDF(await file.arrayBuffer());
-        setInputText(text);
+        const arrayBuffer = await file.arrayBuffer();
+        const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
+        const pdf = await loadingTask.promise;
+        let fullText = '';
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const textContent = await page.getTextContent();
+          fullText += textContent.items.map((item: any) => item.str).join(' ') + '\n';
+        }
+        setInputText(fullText);
       } else if (ext === 'docx') {
         const res = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
         setInputText(res.value);
@@ -67,37 +47,28 @@ const App: React.FC = () => {
     }
   };
 
-  const extractTextFromPDF = async (arrayBuffer: ArrayBuffer): Promise<string> => {
-    const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
-    const pdf = await loadingTask.promise;
-    let fullText = '';
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      fullText += textContent.items.map((item: any) => item.str).join(' ') + '\n';
-    }
-    return fullText;
-  };
-
   const handleGenerate = async () => {
     if (!inputText.trim()) return;
     setIsLoading(true);
     setError(null);
 
     try {
+      // Intentem la generació. Si falla per falta de clau, el servei ho gestionarà o demanarà acció.
       const data = await extractLearningSituation(inputText);
       setResult(data);
     } catch (err: any) {
       console.error("Error durant la generació:", err);
-      if (err.message === "API_KEY_MISSING") {
+      
+      // Si l'error és de clau i estem a l'entorn de l'estudi, obrim el selector
+      if (err.message === "API_KEY_MISSING" || err.message?.includes("API key")) {
         if (window.aistudio) {
-          setError("No s'ha seleccionat cap clau API. Fes clic a 'Connectar' per continuar.");
-        } else {
-          setError("Configuració pendent: S'ha de configurar la variable d'entorn 'API_KEY' al panell de control de Netlify per habilitar la IA.");
+          setError("Cal seleccionar una clau API. S'està obrint el selector...");
+          await window.aistudio.openSelectKey();
+          setError(null);
+          setIsLoading(false);
+          return;
         }
-      } else if (err.message?.includes("not found") || err.message?.includes("key")) {
-        setError("Error de clau API. Si us plau, torna a connectar.");
-        if (window.aistudio) await window.aistudio.openSelectKey();
+        setError("La clau API no està configurada correctament.");
       } else {
         setError(err.message || "S'ha produït un error inesperat.");
       }
@@ -105,33 +76,6 @@ const App: React.FC = () => {
       setIsLoading(false);
     }
   };
-
-  if (!hasKey && window.aistudio) {
-    return (
-      <Layout>
-        <div className="max-w-md mx-auto mt-20 p-8 bg-white rounded-2xl shadow-2xl text-center border border-slate-200">
-          <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6">
-            <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-            </svg>
-          </div>
-          <h2 className="text-2xl font-black mb-4">Connexió requerida</h2>
-          <p className="text-slate-600 mb-8 leading-relaxed">
-            Per utilitzar la IA de Gemini i generar la programació, has de connectar amb un projecte de Google Cloud.
-          </p>
-          <button
-            onClick={handleOpenKeySelector}
-            className="w-full py-4 bg-red-600 text-white rounded-xl font-bold uppercase tracking-wider hover:bg-red-700 transition-all shadow-lg active:scale-95"
-          >
-            Connectar amb Gemini API
-          </button>
-          <p className="mt-6 text-xs text-slate-400">
-            Aquesta eina utilitza el model gemini-3-pro-preview.
-          </p>
-        </div>
-      </Layout>
-    );
-  }
 
   return (
     <Layout>
@@ -168,7 +112,7 @@ const App: React.FC = () => {
 
               <div className="bg-blue-50 p-5 rounded-xl border border-blue-100 flex items-center">
                 <p className="text-sm text-blue-800 leading-relaxed">
-                  <strong>Consell:</strong> Inclou el curs, la matèria i una llista d'activitats. La IA cercarà els sabers i competències més adients.
+                  <strong>Consell:</strong> Pots enganxar els teus apunts o carregar un document. La IA emplenarà la resta.
                 </p>
               </div>
             </div>
@@ -184,18 +128,11 @@ const App: React.FC = () => {
             </div>
 
             {error && (
-              <div className="p-4 bg-red-50 border-l-4 border-red-500 text-red-800 rounded-lg flex flex-col gap-2">
-                <div className="flex items-center gap-3">
-                  <svg className="h-6 w-6 shrink-0 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                  <span className="text-sm font-bold">{error}</span>
-                </div>
-                {!process.env.API_KEY && window.aistudio && (
-                  <button onClick={handleOpenKeySelector} className="text-xs text-red-700 underline text-left ml-9">
-                    Tornar a provar la connexió
-                  </button>
-                )}
+              <div className="p-4 bg-red-50 border-l-4 border-red-500 text-red-800 rounded-lg flex items-center gap-3">
+                <svg className="h-6 w-6 shrink-0 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <span className="text-sm font-bold">{error}</span>
               </div>
             )}
 
