@@ -3,12 +3,15 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { SituacioAprenentatge } from "../types";
 
 /**
- * Extract a structured educational learning situation from raw text using Gemini 3 Pro.
- * Follows the latest @google/genai SDK guidelines for content generation.
+ * Extract a structured educational learning situation from raw text using Gemini.
+ * Handles API key missing error gracefully before calling SDK.
  */
 export const extractLearningSituation = async (text: string): Promise<SituacioAprenentatge> => {
-  // Always create a new GoogleGenAI instance right before making an API call 
-  // to ensure it always uses the most up-to-date API key from the environment/dialog.
+  if (!process.env.API_KEY || process.env.API_KEY === "") {
+    throw new Error("API_KEY_MISSING");
+  }
+
+  // Always use a new instance with the current API key from environment
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const prompt = `Ets un assistent expert en la LOMLOE i el currículum de la Generalitat de Catalunya.
@@ -126,6 +129,7 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
     return JSON.parse(jsonText.trim()) as SituacioAprenentatge;
   } catch (error: any) {
     console.error("Gemini API Error:", error);
-    throw new Error(error.message || "Error en la comunicació amb Gemini.");
+    // Propaguem l'error per gestionar-lo a la UI
+    throw error;
   }
 };
