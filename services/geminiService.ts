@@ -6,11 +6,14 @@ import { SituacioAprenentatge } from "../types";
  * Extract a structured educational learning situation from raw text using Gemini.
  */
 export const extractLearningSituation = async (text: string): Promise<SituacioAprenentatge> => {
-  // Intentem obtenir la clau del procés
   const apiKey = process.env.API_KEY;
   
-  // No bloquegem aquí, deixem que l'SDK intenti la connexió o falli amb un error que puguem capturar
-  const ai = new GoogleGenAI({ apiKey: apiKey || "" });
+  if (!apiKey) {
+    throw new Error("API_KEY_MISSING");
+  }
+
+  // Creem la instància just abans de l'ús per garantir que utilitzem la clau injectada més recent
+  const ai = new GoogleGenAI({ apiKey });
   
   const prompt = `Ets un assistent expert en la LOMLOE i el currículum de la Generalitat de Catalunya.
   Analitza el següent text i genera una Situació d'Aprenentatge oficial en format JSON seguint el model de la Generalitat.
@@ -118,9 +121,13 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
       },
     });
 
-    return JSON.parse(response.text || "{}") as SituacioAprenentatge;
+    if (!response.text) {
+      throw new Error("EMPTY_RESPONSE");
+    }
+
+    return JSON.parse(response.text) as SituacioAprenentatge;
   } catch (error: any) {
-    console.error("Gemini Error:", error);
+    console.error("Detalls de l'error Gemini:", error);
     throw error;
   }
 };
