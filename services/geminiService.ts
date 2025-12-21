@@ -3,17 +3,15 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { SituacioAprenentatge } from "../types";
 
 export const extractLearningSituation = async (text: string): Promise<SituacioAprenentatge> => {
-  // Inicialització directa segons les guies de l'SDK
+  // Inicialització segons la guia oficial: clau exclusiva de process.env.API_KEY
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  const prompt = `Ets un expert en programació LOMLOE a Catalunya (Departament d'Educació). 
-  A partir del següent text, genera una Situació d'Aprenentatge completa en format JSON estricte seguint el model oficial.
-  
-  Text d'entrada: "${text}"`;
+  const prompt = `Ets un expert en programació LOMLOE a Catalunya. 
+  Genera una Situació d'Aprenentatge completa en format JSON per al següent text: "${text}"`;
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview", // Model equilibrat per a tasques de text i raonament
+      model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -106,11 +104,12 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
     });
 
     const textResponse = response.text;
-    if (!textResponse) throw new Error("No s'ha obtingut resposta textual.");
-    
-    return JSON.parse(textResponse.trim()) as SituacioAprenentatge;
+    if (!textResponse) throw new Error("No s'ha rebut contingut.");
+    return JSON.parse(textResponse.trim());
   } catch (err: any) {
-    console.error("Error API:", err);
-    throw new Error(err.message || "Error en la comunicació amb el servei d'IA.");
+    if (err.message?.includes("API Key not set")) {
+      throw new Error("ERROR_CONFIG: La clau API no està configurada a Netlify. Revisa les Variables d'Entorn (Environment Variables).");
+    }
+    throw err;
   }
 };
