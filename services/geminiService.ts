@@ -3,17 +3,31 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { SituacioAprenentatge } from "../types";
 
 export const extractLearningSituation = async (text: string): Promise<SituacioAprenentatge> => {
-  // Inicialització directa segons les directrius: la clau ja és accessible a process.env.API_KEY
+  // Inicialització segons directrius: instància nova abans de la crida per assegurar la clau més actual.
+  // Es confia exclusivament en process.env.API_KEY segons les instruccions.
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  const prompt = `Ets un expert en programació educativa LOMLOE a Catalunya. 
-  Genera una Situació d'Aprenentatge detallada en format JSON a partir d'aquestes notes: "${text}"`;
+  // Utilitzem gemini-3-pro-preview per a tasques complexes de raonament com la planificació LOMLOE.
+  const model = "gemini-3-pro-preview";
+  
+  const systemInstruction = `Ets un expert en la normativa educativa LOMLOE i el currículum de Catalunya. 
+El teu objectiu és transformar notes, esborranys o descripcions de docents en una graella de Situació d'Aprenentatge (SA) completament formal i professional.
+Utilitza un llenguatge pedagògic precís (competències, sabers, vectors, DUA). 
+Si la informació és incompleta, infereix els elements curriculars més coherents basant-te en el curs i la matèria.`;
+
+  const prompt = `Genera la graella de la Situació d'Aprenentatge per a la següent descripció:
+---
+${text}
+---
+És molt important que el JSON retornat segueixi exactament l'estructura definida i que els camps no estiguin buits.`;
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: model,
       contents: prompt,
       config: {
+        systemInstruction: systemInstruction,
+        thinkingConfig: { thinkingBudget: 4000 }, // Donem pressupost de pensament per a la complexitat curricular
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -45,7 +59,8 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
                     properties: {
                       descripcio: { type: Type.STRING },
                       area_materia: { type: Type.STRING }
-                    }
+                    },
+                    required: ["descripcio", "area_materia"]
                   }
                 },
                 objectius: { type: Type.ARRAY, items: { type: Type.STRING } },
@@ -57,7 +72,8 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
                     properties: {
                       saber: { type: Type.STRING },
                       area_materia: { type: Type.STRING }
-                    }
+                    },
+                    required: ["saber", "area_materia"]
                   }
                 }
               },
@@ -74,7 +90,8 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
                     desenvolupament: { type: Type.STRING },
                     estructuracio: { type: Type.STRING },
                     aplicacio: { type: Type.STRING }
-                  }
+                  },
+                  required: ["inicials", "desenvolupament", "estructuracio", "aplicacio"]
                 }
               },
               required: ["estrategies_materials", "activitats"]
@@ -91,11 +108,12 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
                     properties: {
                       alumne: { type: Type.STRING },
                       mesura: { type: Type.STRING }
-                    }
+                    },
+                    required: ["alumne", "mesura"]
                   }
                 }
               },
-              required: ["vectors_descripcio", "suports_universals"]
+              required: ["vectors_descripcio", "suports_universals", "suports_addicionals"]
             }
           },
           required: ["identificacio", "descripcio", "concrecio_curricular", "desenvolupament", "vectors_suports"]
@@ -104,10 +122,13 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
     });
 
     const output = response.text;
-    if (!output) throw new Error("La IA no ha generat cap resposta.");
+    if (!output) throw new Error("La IA no ha generat cap resposta. Revisa el text d'entrada.");
     return JSON.parse(output.trim());
   } catch (err: any) {
-    console.error("Error Gemini:", err);
-    throw new Error(err.message || "Error en la comunicació amb el servei de IA.");
+    console.error("Error en la crida a Gemini:", err);
+    if (err.message?.includes("API key")) {
+      throw new Error("Error de configuració: La clau API no és vàlida o no s'ha trobat al servidor Netlify.");
+    }
+    throw new Error(err.message || "S'ha produït un error en processar la petició.");
   }
 };
