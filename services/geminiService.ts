@@ -3,11 +3,16 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { SituacioAprenentatge } from "../types";
 
 export const extractLearningSituation = async (text: string): Promise<SituacioAprenentatge> => {
-  // Inicialització segons la guia oficial: clau exclusiva de process.env.API_KEY
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = process.env.API_KEY;
   
-  const prompt = `Ets un expert en programació LOMLOE a Catalunya. 
-  Genera una Situació d'Aprenentatge completa en format JSON per al següent text: "${text}"`;
+  if (!apiKey || apiKey === "undefined") {
+    throw new Error("Falta la clau API. Si us plau, configura-la a Netlify o selecciona-la.");
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
+  
+  const prompt = `Ets un expert en programació educativa LOMLOE a Catalunya. 
+  Genera una Situació d'Aprenentatge detallada a partir d'aquestes notes: "${text}"`;
 
   try {
     const response = await ai.models.generateContent({
@@ -103,13 +108,11 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
       },
     });
 
-    const textResponse = response.text;
-    if (!textResponse) throw new Error("No s'ha rebut contingut.");
-    return JSON.parse(textResponse.trim());
+    const output = response.text;
+    if (!output) throw new Error("La IA no ha generat cap text.");
+    return JSON.parse(output.trim());
   } catch (err: any) {
-    if (err.message?.includes("API Key not set")) {
-      throw new Error("ERROR_CONFIG: La clau API no està configurada a Netlify. Revisa les Variables d'Entorn (Environment Variables).");
-    }
-    throw err;
+    console.error("Error Gemini:", err);
+    throw new Error(err.message || "Error desconegut amb la IA.");
   }
 };

@@ -6,47 +6,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Generador de Situacions d'Aprenentatge</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     
-    <!-- Llibreria per exportar a PDF -->
+    <!-- Llibreries externes via CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     
     <style>
         body { font-family: 'Inter', sans-serif; }
         @media print {
             .no-print { display: none !important; }
-            .print-only { display: block !important; }
-            body { background: white; margin: 0; padding: 0; }
-            .shadow-lg { box-shadow: none !important; }
-            @page {
-                size: landscape;
-                margin: 10mm;
-            }
-        }
-        .pdf-content {
-            background: white;
-            width: 277mm;
-            min-height: auto;
-            margin: 0 auto;
+            body { background: white; margin: 0; }
+            @page { size: landscape; margin: 10mm; }
         }
     </style>
 
     <script type="importmap">
-    {
-      "imports": {
-        "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
-        "react": "https://esm.sh/react@^19.2.3",
-        "react-dom": "https://esm.sh/react-dom@^19.2.3",
-        "react-dom/client": "https://esm.sh/react-dom@^19.2.3/client",
-        "mammoth": "https://esm.sh/mammoth@1.8.0",
-        "pdfjs-dist": "https://esm.sh/pdfjs-dist@4.10.38",
-        "docx": "https://esm.sh/docx@9.1.0",
-        "file-saver": "https://esm.sh/file-saver@2.0.5",
-        "react/": "https://esm.sh/react@^19.2.3/",
-        "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
-      }
-    }
-    </script>
+{
+  "imports": {
+    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom": "https://esm.sh/react-dom@^19.2.3",
+    "react-dom/client": "https://esm.sh/react-dom@^19.2.3/client",
+    "docx": "https://esm.sh/docx@9.1.0",
+    "file-saver": "https://esm.sh/file-saver@2.0.5",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/"
+  }
+}
+</script>
 </head>
 <body class="bg-slate-50 text-slate-900">
     <div id="root"></div>
