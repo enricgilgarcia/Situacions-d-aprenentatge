@@ -3,16 +3,11 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { SituacioAprenentatge } from "../types";
 
 export const extractLearningSituation = async (text: string): Promise<SituacioAprenentatge> => {
-  const apiKey = process.env.API_KEY;
-  
-  if (!apiKey || apiKey === "undefined") {
-    throw new Error("Falta la clau API. Si us plau, configura-la a Netlify o selecciona-la.");
-  }
-
-  const ai = new GoogleGenAI({ apiKey });
+  // Inicialització directa segons les directrius: la clau ja és accessible a process.env.API_KEY
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const prompt = `Ets un expert en programació educativa LOMLOE a Catalunya. 
-  Genera una Situació d'Aprenentatge detallada a partir d'aquestes notes: "${text}"`;
+  Genera una Situació d'Aprenentatge detallada en format JSON a partir d'aquestes notes: "${text}"`;
 
   try {
     const response = await ai.models.generateContent({
@@ -109,10 +104,10 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
     });
 
     const output = response.text;
-    if (!output) throw new Error("La IA no ha generat cap text.");
+    if (!output) throw new Error("La IA no ha generat cap resposta.");
     return JSON.parse(output.trim());
   } catch (err: any) {
     console.error("Error Gemini:", err);
-    throw new Error(err.message || "Error desconegut amb la IA.");
+    throw new Error(err.message || "Error en la comunicació amb el servei de IA.");
   }
 };
