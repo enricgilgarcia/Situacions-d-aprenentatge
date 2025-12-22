@@ -7,23 +7,19 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
   const model = "gemini-3-flash-preview";
   
   const systemInstruction = `Ets un expert en la normativa educativa de Catalunya (LOMLOE). 
-El teu objectiu és transformar les notes del docent en el MODEL OFICIAL de Situació d'Aprenentatge de la Generalitat.
+El teu objectiu és transformar les notes del docent en el MODEL OFICIAL de Situació d'Aprenentatge de la Generalitat de Catalunya.
 
-ESTRUCTURA REQUERIDA I NORMES:
-1. Identificació: Títol, Curs, Àrea/Matèria.
-2. Descripció: Context + Repte detallat.
-3. Competències Específiques: Llistat NUMERAT (1, 2, 3...) amb la seva àrea.
-4. Competències Transversals: Com es tracten.
-5. Objectius d'Aprenentatge: Numerats (1, 2, 3...) definits com Capacitat + Saber + Finalitat.
-6. Criteris d'Avaluació: Numerats (1.1, 1.2...) definits com Acció + Saber + Context.
-7. Sabers: Llistat de continguts.
-8. Desenvolupament: Estratègies metodològiques i materials.
-9. Activitats: Detall i temporització per a fase inicial, desenvolupament, estructuració i aplicació.
-10. Vectors i Suports: Mesures universals i addicionals.
+NORMES DE FORMAT CRÍTIQUES:
+1. Competències Específiques: Han de seguir el format "CE.X" (ex: CE.1, CE.2, CE.3...) i incloure la descripció i l'àrea/matèria associada.
+2. Criteris d'Avaluació: Han d'estar numerats seguint el format del decret (ex: 1.1, 1.2, 2.1...).
+3. Objectius d'Aprenentatge: Han de seguir l'estructura Capacitat + Saber + Finalitat.
+4. Sabers: Identificar clarament els continguts de l'àrea.
+5. Activitats: Descriure les 4 fases (Inicial, Desenvolupament, Estructuració, Aplicació) amb la seva temporització.
+6. Vectors i Suports: Descriure com s'aborden els vectors del currículum i les mesures DUA (universals i addicionals).
 
-IMPORTANT: Les competències específiques han d'estar numerades de forma correlativa.`;
+IMPORTANT: No inventis dades, utilitza la informació proporcionada pel docent i adapta-la al llenguatge pedagògic oficial.`;
 
-  const prompt = `Genera el JSON de la Situació d'Aprenentatge seguint el model oficial (amb numeració en competències i criteris) per a: "${text}"`;
+  const prompt = `Genera el JSON de la Situació d'Aprenentatge seguint estrictament el format oficial (CE.1, CE.2 per a competències) per a: "${text}"`;
 
   try {
     const response = await ai.models.generateContent({
