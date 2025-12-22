@@ -3,17 +3,18 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { SituacioAprenentatge } from "../types";
 
 export const extractLearningSituation = async (text: string): Promise<SituacioAprenentatge> => {
-  // Inicialització amb la clau de l'entorn (Netlify)
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  
-  // Utilitzem gemini-3-flash-preview que té quotes molt més generoses i és excel·lent per a extraccions.
   const model = "gemini-3-flash-preview";
   
-  const systemInstruction = `Ets un expert en la normativa educativa LOMLOE i el currículum de Catalunya. 
+  const systemInstruction = `Ets un expert en la normativa educativa LOMLOE i el currículum de Catalunya (Decret 175/2022 d'educació bàsica i Decret 171/2022 de batxillerat). 
 Transforma el text del docent en una graella de Situació d'Aprenentatge (SA) formal.
-Si falta informació, dedueix els elements curriculars (competències, sabers) més adients segons el nivell.`;
+És CRÍTIC que:
+1. Identifiquis correctament les competències específiques i els seus criteris d'avaluació associats.
+2. Els criteris d'avaluació han d'estar numerats seguint l'estil dels decrets (ex: 1.1, 1.2, 2.1...).
+3. Si el docent no especifica el codi, dedueix el més coherent segons l'àrea i el curs.
+4. Utilitza un llenguatge pedagògic precís i sintètic.`;
 
-  const prompt = `Genera el JSON de la Situació d'Aprenentatge per a: "${text}"`;
+  const prompt = `Genera el JSON de la Situació d'Aprenentatge seguint la normativa catalana per a: "${text}"`;
 
   try {
     const response = await ai.models.generateContent({
@@ -21,7 +22,7 @@ Si falta informació, dedueix els elements curriculars (competències, sabers) m
       contents: prompt,
       config: {
         systemInstruction: systemInstruction,
-        thinkingConfig: { thinkingBudget: 0 }, // Flash és ràpid, sovint no requereix pressupost de pensament alt per a JSON
+        thinkingConfig: { thinkingBudget: 0 },
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
