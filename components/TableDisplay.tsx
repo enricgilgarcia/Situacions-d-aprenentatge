@@ -79,7 +79,6 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
     setIsExportingWord(true);
     const titolNet = data.identificacio.titol.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     
-    // Fix: AlignmentType and VerticalAlign are values/enums, used 'any' to avoid type mismatch errors.
     const createCell = (text: string, options: { 
       bold?: boolean, 
       width?: number, 
@@ -101,7 +100,6 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
       
       return new TableCell({
         children: [new Paragraph({
-          // Fix: 'italic' renamed to 'italics' in TextRun options to match library specification.
           children: [new TextRun({ text: text || "", bold, italics: italic, size, font: "Arial" })],
           spacing: { before: 140, after: 140 },
           alignment: align
@@ -130,16 +128,13 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
           page: { size: { orientation: PageOrientation.LANDSCAPE } },
         },
         children: [
-          // Fix: Moved text formatting (bold, size, font) from Paragraph options to a nested TextRun.
           new Paragraph({ 
             children: [new TextRun({ text: "Generalitat de Catalunya", bold: true, size: 28, font: "Arial" })] 
           }),
-          // Fix: Moved text formatting from Paragraph options to a nested TextRun and preserved spacing.
           new Paragraph({ 
             children: [new TextRun({ text: "Departament d’Educació", bold: true, size: 28, font: "Arial" })],
             spacing: { after: 600 } 
           }),
-          // Fix: Use 'children' with TextRun for the title paragraph to ensure compatibility.
           new Paragraph({ 
             children: [new TextRun({ text: "Situació d’aprenentatge" })], 
             heading: HeadingLevel.HEADING_1, 
@@ -250,7 +245,7 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
         .official-page { 
           background: white; 
           width: 297mm; 
-          height: 209.3mm; /* Alçada per evitar residus de píxels que causen pàgines en blanc */
+          height: 209.3mm;
           padding: 15mm; 
           margin: 0;
           box-shadow: 0 4px 30px rgba(0,0,0,0.1); 
@@ -263,7 +258,6 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
           flex-direction: column;
         }
         
-        /* El secret per evitar la pàgina en blanc: només saltar si no és l'últim full */
         .official-page:not(:last-child) {
           page-break-after: always;
         }
@@ -271,7 +265,6 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
         @media screen {
            .official-page { margin-bottom: 40px; }
            .official-container { padding-bottom: 80px; }
-           /* Durant l'exportació eliminem el marge inferior per evitar que s'interpreti com a contingut extra */
            .official-container.is-exporting-pdf .official-page { margin-bottom: 0 !important; }
         }
         
@@ -297,15 +290,18 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
         {/* PÀGINA 1: PORTADA */}
         <div className="official-page">
           <div className="official-header">
-             <div className="w-12 h-12 bg-[#E30613] flex items-center justify-center">
-                <div className="border-2 border-white w-8 h-8 flex items-center justify-center">
-                  <div className="w-0.5 h-6 bg-white mx-1"></div>
-                  <div className="w-0.5 h-6 bg-white mx-1"></div>
-                </div>
-             </div>
-             <div>
-               <div className="font-bold text-lg leading-tight uppercase">Generalitat de Catalunya</div>
-               <div className="font-bold text-lg leading-tight uppercase">Departament d’Educació</div>
+             {/* Oficial SVG Logo */}
+             <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
+                <rect width="48" height="48" fill="#E30613"/>
+                <rect x="10" y="10" width="28" height="28" stroke="white" strokeWidth="2.5"/>
+                <rect x="14.5" y="14" width="2" height="20" fill="white"/>
+                <rect x="20.5" y="14" width="2" height="20" fill="white"/>
+                <rect x="26.5" y="14" width="2" height="20" fill="white"/>
+                <rect x="32.5" y="14" width="2" height="20" fill="white"/>
+             </svg>
+             <div className="flex flex-col">
+               <div className="font-bold text-[17px] leading-[1.1] uppercase tracking-tight">Generalitat de Catalunya</div>
+               <div className="font-bold text-[17px] leading-[1.1] uppercase tracking-tight">Departament d’Educació</div>
              </div>
           </div>
           <div className="official-title-big">Situació d’aprenentatge<sup className="text-xl font-normal">1</sup></div>
