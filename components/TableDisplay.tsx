@@ -80,14 +80,15 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
     setIsExportingWord(true);
     const titolNet = data.identificacio.titol.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     
+    // Fix: AlignmentType and VerticalAlign are values/enums, used 'any' to avoid type mismatch errors.
     const createCell = (text: string, options: { 
       bold?: boolean, 
       width?: number, 
       isHeader?: boolean, 
       italic?: boolean, 
-      align?: AlignmentType,
+      align?: any,
       size?: number,
-      vAlign?: VerticalAlign
+      vAlign?: any
     } = {}) => {
       const { 
         bold = false, 
@@ -101,7 +102,8 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
       
       return new TableCell({
         children: [new Paragraph({
-          children: [new TextRun({ text: text || "", bold, italic, size, font: "Arial" })],
+          // Fix: 'italic' renamed to 'italics' in TextRun options to match library specification.
+          children: [new TextRun({ text: text || "", bold, italics: italic, size, font: "Arial" })],
           spacing: { before: 140, after: 140 },
           alignment: align
         })],
@@ -129,9 +131,22 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
           page: { size: { orientation: PageOrientation.LANDSCAPE } },
         },
         children: [
-          new Paragraph({ text: "Generalitat de Catalunya", bold: true, size: 28, font: "Arial" }),
-          new Paragraph({ text: "Departament d’Educació", bold: true, size: 28, font: "Arial", spacing: { after: 600 } }),
-          new Paragraph({ text: "Situació d’aprenentatge", heading: HeadingLevel.HEADING_1, alignment: AlignmentType.RIGHT, spacing: { after: 1200 } }),
+          // Fix: Moved text formatting (bold, size, font) from Paragraph options to a nested TextRun.
+          new Paragraph({ 
+            children: [new TextRun({ text: "Generalitat de Catalunya", bold: true, size: 28, font: "Arial" })] 
+          }),
+          // Fix: Moved text formatting from Paragraph options to a nested TextRun and preserved spacing.
+          new Paragraph({ 
+            children: [new TextRun({ text: "Departament d’Educació", bold: true, size: 28, font: "Arial" })],
+            spacing: { after: 600 } 
+          }),
+          // Fix: Use 'children' with TextRun for the title paragraph to ensure compatibility.
+          new Paragraph({ 
+            children: [new TextRun({ text: "Situació d’aprenentatge" })], 
+            heading: HeadingLevel.HEADING_1, 
+            alignment: AlignmentType.RIGHT, 
+            spacing: { after: 1200 } 
+          }),
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
             rows: [
