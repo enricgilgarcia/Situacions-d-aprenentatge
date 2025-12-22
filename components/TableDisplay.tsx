@@ -30,7 +30,7 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingWord, setIsExportingWord] = useState(false);
 
-  // Normalitza el format de les competències a CE.X.
+  // Normalització estricta de les competències al format CE.X.
   const formatCE = (text: string, index: number) => {
     const cleanText = text.replace(/^CE\.\d+\.\s*/i, '').trim();
     return `CE.${index + 1}. ${cleanText}`;
@@ -42,9 +42,9 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
     const element = pdfRef.current;
     const titolNet = data.identificacio.titol.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     
-    // Configuració optimitzada per evitar pàgines en blanc i assegurar talls nets
+    // Configuració optimitzada per html2pdf per evitar pàgines en blanc
     const opt = {
-      margin: 0,
+      margin: [0, 0, 0, 0],
       filename: `Situacio_Aprenentatge_${titolNet}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: { 
@@ -52,9 +52,10 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
         useCORS: true, 
         logging: false,
         letterRendering: true,
-        windowWidth: 1122 // Aproximadament l'amplada de l'A4 en horitzontal
+        windowWidth: 1122, // Amplada horitzontal de referència
+        scrollY: 0
       },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape', compress: true },
       pagebreak: { mode: 'css', after: '.official-page' }
     };
 
@@ -63,7 +64,7 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
       await html2pdf().set(opt).from(element).save();
     } catch (error) {
       console.error("Error PDF:", error);
-      alert("Error en generar el PDF. Si el format no és correcte, prova d'usar el botó 'Imprimir' i triar 'Anomena com a PDF'.");
+      alert("Error al generar el PDF. Si el problema persisteix, prova de 'Imprimir' i triar 'Anomena com a PDF'.");
     } finally {
       setIsExporting(false);
     }
@@ -73,35 +74,40 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
     setIsExportingWord(true);
     const titolNet = data.identificacio.titol.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     
-    // Funció auxiliar per crear cel·les estandarditzades
+    // Estils de cel·la compartits per al document Word
     const createCell = (text: string, bold = false, width = 100, isHeader = false, italic = false) => new TableCell({
       children: [new Paragraph({
         children: [new TextRun({ text: text || "", bold, italic, size: 20, font: "Arial" })],
-        spacing: { before: 100, after: 100 },
+        spacing: { before: 120, after: 120 },
         alignment: isHeader ? AlignmentType.CENTER : AlignmentType.LEFT
       })],
       width: { size: width, type: WidthType.PERCENTAGE },
       verticalAlign: VerticalAlign.TOP,
       shading: isHeader ? { fill: "F2F2F2", type: ShadingType.CLEAR } : undefined,
-      margins: { left: 120, right: 120, top: 120, bottom: 120 }
+      margins: { left: 144, right: 144, top: 120, bottom: 120 },
+      borders: {
+        top: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
+        bottom: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
+        left: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
+        right: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
+      }
     });
 
-    const createSectionHeader = (text: string) => new Paragraph({
+    const createSectionTitle = (text: string) => new Paragraph({
       children: [new TextRun({ text, bold: true, size: 24, font: "Arial" })],
-      spacing: { before: 300, after: 150 }
+      spacing: { before: 400, after: 200 }
     });
 
-    // Construcció del document de 5 pàgines
     const doc = new Document({
       sections: [{
         properties: {
           page: { size: { orientation: PageOrientation.LANDSCAPE } },
         },
         children: [
-          // PÀGINA 1
-          new Paragraph({ text: "Generalitat de Catalunya", bold: true, size: 24, font: "Arial" }),
-          new Paragraph({ text: "Departament d’Educació", bold: true, size: 24, font: "Arial", spacing: { after: 600 } }),
-          new Paragraph({ text: "Situació d’aprenentatge", heading: HeadingLevel.HEADING_1, alignment: AlignmentType.RIGHT, spacing: { after: 1200 } }),
+          // PÀGINA 1: Identificació
+          new Paragraph({ text: "Generalitat de Catalunya", bold: true, size: 26, font: "Arial" }),
+          new Paragraph({ text: "Departament d’Educació", bold: true, size: 26, font: "Arial", spacing: { after: 600 } }),
+          new Paragraph({ text: "Situació d’aprenentatge", heading: HeadingLevel.HEADING_1, alignment: AlignmentType.RIGHT, spacing: { after: 1000 } }),
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
             rows: [
@@ -112,13 +118,13 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
           }),
           new Paragraph({ children: [new PageBreak()] }),
 
-          // PÀGINA 2
-          createSectionHeader("DESCRIPCIÓ (Context + Repte)"),
+          // PÀGINA 2: Descripció i Competències
+          createSectionTitle("DESCRIPCIÓ (Context + Repte)"),
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
             rows: [new TableRow({ children: [createCell(data.descripcio.context_repte)] })]
           }),
-          createSectionHeader("COMPETÈNCIES ESPECÍFIQUES"),
+          createSectionTitle("COMPETÈNCIES ESPECÍFIQUES"),
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
             rows: [
@@ -128,15 +134,15 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
               )
             ]
           }),
-          createSectionHeader("TRACTAMENT DE LES COMPETÈNCIES TRANSVERSALS"),
+          createSectionTitle("TRACTAMENT DE LES COMPETÈNCIES TRANSVERSALS"),
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
             rows: [new TableRow({ children: [createCell(data.descripcio.competencies_transversals)] })]
           }),
           new Paragraph({ children: [new PageBreak()] }),
 
-          // PÀGINA 3
-          createSectionHeader("OBJECTIUS D'APRENENTATGE I CRITERIS D'AVALUACIÓ"),
+          // PÀGINA 3: Concreció Curricular
+          createSectionTitle("OBJECTIUS D'APRENENTATGE I CRITERIS D'AVALUACIÓ"),
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
             rows: [
@@ -147,25 +153,25 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
               ] })
             ]
           }),
-          createSectionHeader("SABERS"),
+          createSectionTitle("SABERS"),
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
             rows: [
               new TableRow({ children: [createCell("#", true, 10, true), createCell("Saber", true, 60, true), createCell("Àrea o matèria", true, 30, true)] }),
               ...data.concrecio_curricular.sabers.map((s, i) => 
-                new TableRow({ children: [createCell((i+1).toString(), false, 10, false), createCell(s.saber), createCell(s.area_materia)] })
+                new TableRow({ children: [createCell((i+1).toString(), false, 10), createCell(s.saber), createCell(s.area_materia)] })
               )
             ]
           }),
           new Paragraph({ children: [new PageBreak()] }),
 
-          // PÀGINA 4
-          createSectionHeader("DESENVOLUPAMENT DE LA SITUACIÓ D’APRENENTATGE"),
+          // PÀGINA 4: Desenvolupament
+          createSectionTitle("DESENVOLUPAMENT DE LA SITUACIÓ D’APRENENTATGE"),
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
             rows: [new TableRow({ children: [createCell(data.desenvolupament.estrategies_metodologiques)] })]
           }),
-          createSectionHeader("ACTIVITATS D'APRENENTATGE I D'AVALUACIÓ"),
+          createSectionTitle("ACTIVITATS D'APRENENTATGE I D'AVALUACIÓ"),
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
             rows: [
@@ -178,18 +184,18 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
           }),
           new Paragraph({ children: [new PageBreak()] }),
 
-          // PÀGINA 5
-          createSectionHeader("BREU DESCRIPCIÓ DE COM S’ABORDEN ELS VECTORS"),
+          // PÀGINA 5: Vectors i Suports
+          createSectionTitle("BREU DESCRIPCIÓ DE COM S’ABORDEN ELS VECTORS"),
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
             rows: [new TableRow({ children: [createCell(data.vectors_suports.vectors_descripcio, false, 100, false, true)] })]
           }),
-          createSectionHeader("MESURES I SUPORTS UNIVERSALS"),
+          createSectionTitle("MESURES I SUPORTS UNIVERSALS"),
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
             rows: [new TableRow({ children: [createCell(data.vectors_suports.suports_universals)] })]
           }),
-          createSectionHeader("MESURES I SUPORTS ADDICIONALS O INTENSIUS"),
+          createSectionTitle("MESURES I SUPORTS ADDICIONALS O INTENSIUS"),
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
             rows: [
@@ -210,7 +216,7 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
       saveAs(blob, `Situacio_Aprenentatge_${titolNet}.docx`);
     } catch (err) {
       console.error("Error DOCX:", err);
-      alert("No s'ha pogut generar el fitxer Word correctament.");
+      alert("No s'ha pogut generar el fitxer Word.");
     } finally {
       setIsExportingWord(false);
     }
@@ -224,38 +230,38 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
           margin: 0 auto;
           display: flex;
           flex-direction: column;
-          gap: 0;
         }
         .official-page { 
           background: white; 
           width: 297mm; 
-          height: 210mm; 
+          height: 209.5mm; 
           padding: 15mm; 
           margin: 0;
           box-shadow: 0 4px 30px rgba(0,0,0,0.1); 
           position: relative;
           color: black;
-          font-family: Arial, Helvetica, sans-serif;
+          font-family: Arial, sans-serif;
           box-sizing: border-box;
           overflow: hidden;
           page-break-after: always;
+          page-break-inside: avoid;
         }
         @media screen {
            .official-page { margin-bottom: 40px; }
-           .official-container { padding-bottom: 60px; }
+           .official-container { padding-bottom: 80px; }
         }
         .official-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; table-layout: fixed; border: 1.2px solid black; }
-        .official-table td { border: 1px solid black; padding: 8px 14px; vertical-align: top; font-size: 13px; word-wrap: break-word; }
-        .official-table .label { width: 220px; font-weight: bold; background: #fdfdfd; }
+        .official-table td { border: 1px solid black; padding: 10px 14px; vertical-align: top; font-size: 13px; word-wrap: break-word; line-height: 1.4; }
+        .official-table .label { width: 220px; font-weight: bold; background: #fafafa; }
         .official-header { display: flex; align-items: center; gap: 15px; margin-bottom: 30px; }
         .official-title-big { font-size: 64px; font-weight: 900; text-align: right; margin-top: 50px; line-height: 1; letter-spacing: -2px; color: #000; }
-        .section-title { font-weight: bold; font-size: 14px; margin-bottom: 5px; text-transform: uppercase; margin-top: 15px; color: #000; border-bottom: 1px solid #eee; padding-bottom: 2px; }
+        .section-title { font-weight: bold; font-size: 14px; margin-bottom: 6px; text-transform: uppercase; margin-top: 15px; color: #000; border-bottom: 1px solid #eee; }
         .box-content { border: 1.2px solid black; padding: 12px; min-height: 85px; font-size: 13px; margin-bottom: 12px; line-height: 1.5; }
-        .footnote-area { position: absolute; bottom: 15mm; left: 15mm; right: 15mm; font-size: 9px; line-height: 1.3; border-top: 1px solid #ddd; padding-top: 8px; color: #555; }
+        .footnote-area { position: absolute; bottom: 15mm; left: 15mm; right: 15mm; font-size: 9px; line-height: 1.3; border-top: 1px solid #ddd; padding-top: 8px; color: #666; }
         .page-num { position: absolute; bottom: 10mm; right: 15mm; font-size: 11px; font-weight: bold; }
         
         @media print {
-          .official-container { width: 100%; margin: 0; }
+          .official-container { width: 297mm; margin: 0; }
           .official-page { box-shadow: none; margin: 0; width: 297mm; height: 210mm; page-break-after: always; border: none; }
           .no-print { display: none !important; }
           body { background: white; margin: 0; padding: 0; }
@@ -330,9 +336,9 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
           <div className="page-num">Pàgina 2/5</div>
         </div>
 
-        {/* PÀGINA 3: OBJECTIUS, CRITERIS I SABERS */}
+        {/* PÀGINA 3: CONCRECIÓ CURRICULAR */}
         <div className="official-page">
-          <div className="flex border-t border-l border-r border-black bg-gray-50 font-bold text-xs uppercase text-center">
+          <div className="flex border-t border-l border-r border-black bg-gray-50 font-bold text-[10px] uppercase text-center">
              <div className="flex-1 p-2 border-r border-black">OBJECTIUS D’APRENENTATGE</div>
              <div className="flex-1 p-2">CRITERIS D’AVALUACIÓ</div>
           </div>
@@ -384,14 +390,26 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
               </tr>
             </thead>
             <tbody>
-              {/* Cast as ActivitatDetall to avoid any implicit any issues */}
-              {(Object.entries(data.desenvolupament.activitats) as [string, ActivitatDetall][]).map(([key, act], idx) => (
-                <tr key={key} style={{ height: idx === 1 ? '100px' : '75px' }}>
-                  <td className="font-bold capitalize">{key.replace(/_/g, ' ')}</td>
-                  <td>{act.descripcio}</td>
-                  <td>{act.temporitzacio}</td>
-                </tr>
-              ))}
+              <tr style={{ height: '75px' }}>
+                <td className="font-bold">Activitats inicials</td>
+                <td>{data.desenvolupament.activitats.inicials.descripcio}</td>
+                <td>{data.desenvolupament.activitats.inicials.temporitzacio}</td>
+              </tr>
+              <tr style={{ height: '100px' }}>
+                <td className="font-bold">Activitats de desenvolupament</td>
+                <td>{data.desenvolupament.activitats.desenvolupament.descripcio}</td>
+                <td>{data.desenvolupament.activitats.desenvolupament.temporitzacio}</td>
+              </tr>
+              <tr style={{ height: '75px' }}>
+                <td className="font-bold">Activitats d'estructuració</td>
+                <td>{data.desenvolupament.activitats.estructuracio.descripcio}</td>
+                <td>{data.desenvolupament.activitats.estructuracio.temporitzacio}</td>
+              </tr>
+              <tr style={{ height: '75px' }}>
+                <td className="font-bold">Activitats d'aplicació</td>
+                <td>{data.desenvolupament.activitats.aplicacio.descripcio}</td>
+                <td>{data.desenvolupament.activitats.aplicacio.temporitzacio}</td>
+              </tr>
             </tbody>
           </table>
           <div className="page-num">Pàgina 4/5</div>
@@ -415,7 +433,7 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
               {data.vectors_suports.suports_addicionals.length > 0 ? 
                 data.vectors_suports.suports_addicionals.map((s, i) => (
                   <tr key={i} style={{ height: '40px' }}><td>{s.alumne}</td><td>{s.mesura}</td></tr>
-                )) : <tr><td colSpan={2} className="h-12 text-slate-300 italic">No s'han especificat mesures addicionals per a cap alumne.</td></tr>
+                )) : <tr><td colSpan={2} className="h-12 text-slate-300 italic text-center">No s'han definit mesures addicionals.</td></tr>
               }
             </tbody>
           </table>
@@ -423,7 +441,7 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
         </div>
       </div>
 
-      {/* BOTONS D'ACCIO REFINATS */}
+      {/* FOOTER ACTIONS */}
       <div className="max-w-[1200px] mx-auto mt-8 mb-20 flex flex-wrap justify-center gap-4 no-print px-4">
         <button 
           onClick={handleDownloadPDF} 
@@ -431,16 +449,16 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
           className={`flex items-center gap-3 bg-red-600 text-white px-10 py-5 rounded-2xl font-black shadow-2xl transition-all transform active:scale-95 ${isExporting ? 'opacity-50' : 'hover:bg-red-700 hover:-translate-y-1'}`}
         >
           {isExporting ? <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>}
-          {isExporting ? "GENERANT..." : "BAIXAR PDF OFICIAL"}
+          {isExporting ? "GENERANT PDF..." : "BAIXAR PDF"}
         </button>
         
         <button 
           onClick={handleDownloadDOCX} 
           disabled={isExportingWord}
-          className={`flex items-center gap-3 bg-[#1B5E20] text-white px-10 py-5 rounded-2xl font-black shadow-2xl transition-all transform active:scale-95 ${isExportingWord ? 'opacity-50' : 'hover:bg-[#2E7D32] hover:-translate-y-1'}`}
+          className={`flex items-center gap-3 bg-green-700 text-white px-10 py-5 rounded-2xl font-black shadow-2xl transition-all transform active:scale-95 ${isExportingWord ? 'opacity-50' : 'hover:bg-green-800 hover:-translate-y-1'}`}
         >
           {isExportingWord ? <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM6 20V4h7v5h5v11H6z"/></svg>}
-          {isExportingWord ? "GENERANT..." : "BAIXAR WORD (DOCX)"}
+          {isExportingWord ? "GENERANT WORD..." : "BAIXAR WORD (DOCX)"}
         </button>
 
         <button 
