@@ -29,9 +29,13 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingWord, setIsExportingWord] = useState(false);
 
-  // Normalització estricta de les competències al format CE.X.
+  /**
+   * Normalitza les competències al format estricte CE.X.
+   * Elimina prefixos variats (CE.1, CE 1, Competència 1, etc.) per evitar duplicitats.
+   */
   const formatCE = (text: string, index: number) => {
-    const cleanText = text.replace(/^CE\.\d+\.\s*/i, '').trim();
+    if (!text) return `CE.${index + 1}.`;
+    const cleanText = text.replace(/^(CE\.?\s*\d+\.?\s*:?|Competència\s*específica\s*\d+\.?\s*:?|CE\d+)\s*[-–—]?\s*/i, '').trim();
     return `CE.${index + 1}. ${cleanText}`;
   };
 
@@ -41,7 +45,6 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
     const element = pdfRef.current;
     const titolNet = data.identificacio.titol.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     
-    // Afegim una classe temporal per eliminar marges durant l'exportació
     element.classList.add('is-exporting-pdf');
 
     const opt = {
@@ -53,13 +56,12 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
         useCORS: true, 
         logging: false,
         letterRendering: true,
-        windowWidth: 1122, // Amplada exacta A4 horitzontal a 96dpi
+        windowWidth: 1122, 
         scrollY: 0,
         x: 0,
         y: 0
       },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape', compress: true },
-      // Utilitzem només 'css' per respectar el nostre selector :not(:last-child)
       pagebreak: { mode: 'css' }
     };
 
@@ -290,7 +292,6 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
         {/* PÀGINA 1: PORTADA */}
         <div className="official-page">
           <div className="official-header">
-             {/* Oficial SVG Logo */}
              <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
                 <rect width="48" height="48" fill="#E30613"/>
                 <rect x="10" y="10" width="28" height="28" stroke="white" strokeWidth="2.5"/>
