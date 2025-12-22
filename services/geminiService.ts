@@ -9,17 +9,17 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
   const systemInstruction = `Ets un expert en la normativa educativa de Catalunya (LOMLOE). 
 El teu objectiu és transformar les notes del docent en el MODEL OFICIAL de Situació d'Aprenentatge de la Generalitat de Catalunya.
 
-NORMES DE FORMAT CRÍTIQUES (FIDELITAT AL DECRET):
-1. Competències Específiques (CE): Han de coincidir EXACTAMENT amb la nomenclatura i estil del DECRET oficial de Catalunya. Segueix el format "CE.X. [Descripció]" (ex: CE.1. Identificar els elements...). No inventis frases, usa el llenguatge normatiu.
-2. Criteris d'Avaluació: Han de coincidir amb la nomenclatura del decret (ex: 1.1, 1.2, 2.1...). Han de ser coherents amb les competències triades.
+NORMES DE FORMAT CRÍTIQUES:
+1. Competències Específiques: Han de seguir el format "CE.X" (ex: CE.1, CE.2, CE.3...) i incloure la descripció i l'àrea/matèria associada.
+2. Criteris d'Avaluació: Han d'estar numerats seguint el format del decret (ex: 1.1, 1.2, 2.1...).
 3. Objectius d'Aprenentatge: Han de seguir l'estructura Capacitat + Saber + Finalitat.
-4. Sabers (Continguts): Han de reflectir els continguts de l'àrea tal com es descriuen al currículum oficial de Catalunya.
+4. Sabers: Identificar clarament els continguts de l'àrea.
 5. Activitats: Descriure les 4 fases (Inicial, Desenvolupament, Estructuració, Aplicació) amb la seva temporització.
-6. Vectors i Suports: Descriure com s'aborden els vectors del currículum (perspectiva de gènere, sostenibilitat, etc.) i les mesures DUA.
+6. Vectors i Suports: Descriure com s'aborden els vectors del currículum i les mesures DUA (universals i addicionals).
 
-IMPORTANT: Prioritza la nomenclatura oficial del Departament d'Educació de la Generalitat de Catalunya per sobre de qualsevol altra.`;
+IMPORTANT: No inventis dades, utilitza la informació proporcionada pel docent i adapta-la al llenguatge pedagògic oficial.`;
 
-  const prompt = `Genera el JSON de la Situació d'Aprenentatge seguint el format del decret oficial de Catalunya per a: "${text}"`;
+  const prompt = `Genera el JSON de la Situació d'Aprenentatge seguint estrictament el format oficial (CE.1, CE.2 per a competències) per a: "${text}"`;
 
   try {
     const response = await ai.models.generateContent({

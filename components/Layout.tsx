@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 interface LayoutProps {
@@ -7,35 +6,23 @@ interface LayoutProps {
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
   return (
-    <div className="min-h-screen flex flex-col bg-[#F8FAFC]">
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-200 py-3 px-6 no-print">
+    <div className="min-h-screen flex flex-col">
+      <header className="bg-white border-b border-slate-200 py-4 px-6 no-print">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center shadow-lg shadow-red-200">
-               <span className="text-white font-black text-xs">SA</span>
-            </div>
-            <h1 className="text-lg font-bold tracking-tight text-slate-800">
-              Programador <span className="text-red-600">LOMLOE</span>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold tracking-tight text-slate-800">
+              Situacions d'Aprenentatge <span className="text-red-600">LOMLOE</span>
             </h1>
           </div>
-          <div className="flex items-center gap-4">
-            <span className="px-3 py-1 bg-slate-100 text-[10px] font-bold text-slate-500 rounded-full uppercase tracking-wider">v2.5 Pro</span>
-          </div>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest hidden md:block">Eina de Planificació Docent</p>
         </div>
       </header>
       <main className="flex-grow max-w-6xl mx-auto w-full p-4 md:p-8">
         {children}
       </main>
-      <footer className="bg-white border-t border-slate-200 py-8 px-6 no-print">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="text-slate-400 text-xs font-medium">
-            © {new Date().getFullYear()} Generador Oficial de Situacions d'Aprenentatge Catalunya
-          </div>
-          <div className="flex gap-6 text-slate-400 text-xs font-bold uppercase tracking-widest">
-            <span>Privacitat</span>
-            <span>Normativa</span>
-            <span className="text-red-500">Departament d'Educació</span>
-          </div>
+      <footer className="bg-white border-t border-slate-200 py-6 px-6 no-print">
+        <div className="max-w-6xl mx-auto text-center text-slate-400 text-sm">
+          Creat amb Intel·ligència Artificial per al personal docent. {new Date().getFullYear()}
         </div>
       </footer>
     </div>
