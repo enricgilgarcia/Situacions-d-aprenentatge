@@ -3,28 +3,27 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { SituacioAprenentatge } from "../types";
 
 export const extractLearningSituation = async (text: string): Promise<SituacioAprenentatge> => {
-  // Create a new GoogleGenAI instance right before making an API call to ensure it always uses the most up-to-date API key.
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const model = "gemini-3-flash-preview";
   
-  const systemInstruction = `Ets un expert en la normativa educativa de Catalunya. 
+  const systemInstruction = `Ets un expert en la normativa educativa de Catalunya (LOMLOE). 
 El teu objectiu és transformar les notes del docent en el MODEL OFICIAL de Situació d'Aprenentatge de la Generalitat.
 
-ESTRUCTURA REQUERIDA:
-1. Identificació: Títol, Curs (nivell educatiu), Àrea/Matèria/Àmbit.
-2. Descripció: Context + Repte (Per què aquesta SA? Quin repte planteja?).
-3. Competències Específiques: Llistat amb la seva àrea o matèria.
+ESTRUCTURA REQUERIDA I NORMES:
+1. Identificació: Títol, Curs, Àrea/Matèria.
+2. Descripció: Context + Repte detallat.
+3. Competències Específiques: Llistat NUMERAT (1, 2, 3...) amb la seva àrea.
 4. Competències Transversals: Com es tracten.
 5. Objectius d'Aprenentatge: Numerats (1, 2, 3...) definits com Capacitat + Saber + Finalitat.
 6. Criteris d'Avaluació: Numerats (1.1, 1.2...) definits com Acció + Saber + Context.
-7. Sabers: Llistat de continguts vinculats a l'àrea.
-8. Desenvolupament: Estratègies metodològiques, agrupaments i materials.
-9. Activitats: Descripció i temporització per a cada fase (inicial, desenvolupament, estructuració, aplicació).
-10. Vectors i Suports: Descripció dels vectors, mesures universals i mesures addicionals (alumne/mesura).
+7. Sabers: Llistat de continguts.
+8. Desenvolupament: Estratègies metodològiques i materials.
+9. Activitats: Detall i temporització per a fase inicial, desenvolupament, estructuració i aplicació.
+10. Vectors i Suports: Mesures universals i addicionals.
 
-No incloguis el text dels decrets en els títols de les seccions, només el contingut pedagògic.`;
+IMPORTANT: Les competències específiques han d'estar numerades de forma correlativa.`;
 
-  const prompt = `Genera el JSON de la Situació d'Aprenentatge seguint el model oficial per a aquestes notes: "${text}"`;
+  const prompt = `Genera el JSON de la Situació d'Aprenentatge seguint el model oficial (amb numeració en competències i criteris) per a: "${text}"`;
 
   try {
     const response = await ai.models.generateContent({
@@ -148,7 +147,6 @@ No incloguis el text dels decrets en els títols de les seccions, només el cont
     if (err.message?.includes("429")) {
       throw new Error("QUOTA_EXHAUSTED");
     }
-    // As per guidelines, handle 'Requested entity was not found' to prompt key re-selection
     if (err.message?.includes("Requested entity was not found.")) {
       throw new Error("KEY_NOT_FOUND");
     }
