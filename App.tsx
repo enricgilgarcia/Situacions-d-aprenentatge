@@ -208,7 +208,7 @@ const App: React.FC = () => {
               onClick={() => setResult(null)} 
               className="px-6 py-3 bg-white text-slate-800 font-black text-xs rounded-xl border border-slate-200 shadow-sm flex items-center gap-2 group transition-all hover:bg-slate-50"
             >
-              <span className="group-hover:-translate-x-1 transition-transform">←</span> NOU PROJECTE
+              <span className="group-hover:-translate-x-1 transition-transform">←</span> TORNA A L'EDITOR
             </button>
             <div className="flex items-center gap-3">
               <div className="flex flex-col text-right">
