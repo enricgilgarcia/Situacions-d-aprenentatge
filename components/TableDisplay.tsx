@@ -42,9 +42,9 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
     const element = pdfRef.current;
     const titolNet = data.identificacio.titol.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     
-    // Configuració optimitzada per html2pdf per evitar pàgines en blanc
+    // Configuració optimitzada per html2pdf per evitar pàgines en blanc i assegurar talls nets
     const opt = {
-      margin: [0, 0, 0, 0],
+      margin: 0,
       filename: `Situacio_Aprenentatge_${titolNet}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: { 
@@ -52,11 +52,11 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
         useCORS: true, 
         logging: false,
         letterRendering: true,
-        windowWidth: 1122, // Amplada horitzontal de referència
+        windowWidth: 1122, // Amplada de referència per a A4 landscape
         scrollY: 0
       },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape', compress: true },
-      pagebreak: { mode: 'css', after: '.official-page' }
+      pagebreak: { mode: ['css', 'legacy'], after: '.official-page' }
     };
 
     try {
@@ -64,7 +64,7 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
       await html2pdf().set(opt).from(element).save();
     } catch (error) {
       console.error("Error PDF:", error);
-      alert("Error al generar el PDF. Si el problema persisteix, prova de 'Imprimir' i triar 'Anomena com a PDF'.");
+      alert("Error al generar el PDF. Si el format no és perfecte, prova d'usar el botó 'Imprimir' i triar 'Anomena com a PDF'.");
     } finally {
       setIsExporting(false);
     }
@@ -234,7 +234,7 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
         .official-page { 
           background: white; 
           width: 297mm; 
-          height: 209.5mm; 
+          height: 209mm; /* Ajustat per evitar talls micro-pixels i pàgines en blanc */
           padding: 15mm; 
           margin: 0;
           box-shadow: 0 4px 30px rgba(0,0,0,0.1); 
