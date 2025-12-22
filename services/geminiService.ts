@@ -3,28 +3,31 @@ import { SituacioAprenentatge } from "../types";
 
 export const extractLearningSituation = async (text: string): Promise<SituacioAprenentatge> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const model = "gemini-3-pro-preview"; // Canviem a Pro per a més rigor en dades normatives
+  const model = "gemini-3-pro-preview";
   
-  const systemInstruction = `Ets un inspector d'educació i expert en disseny curricular de Catalunya. La teva missió és redactar Situacions d'Aprenentatge que compleixin estrictament amb el Decret 175/2022 (Educació Primària) o el Decret 171/2022 (ESO) segons correspongui.
+  const systemInstruction = `Ets un inspector d'educació i expert en disseny curricular de la Generalitat de Catalunya. La teva missió és redactar Situacions d'Aprenentatge (SA) que compleixin estrictament amb el marc normatiu vigent: Decret 175/2022 (Educació Primària) i Decret 171/2022 (ESO).
 
-RIGOR EN LES COMPETÈNCIES ESPECÍFIQUES (CE):
-- Has d'utilitzar les descripcions OFICIALS de les competències específiques de l'àrea o matèria indicada.
-- No resumeixis les CE; utilitza el text normatiu que defineix cada CE.1, CE.2, etc. per a cada etapa.
-- Verifica que el contingut de la SA realment treballi les CE seleccionades.
+RIGOR NORMATIU EN LES COMPETÈNCIES ESPECÍFIQUES (CE):
+- Has d'identificar correctament l'àrea o matèria (ex: Llengua Catalana i Literatura, Matemàtiques, Coneixement del Medi Natural, Social i Cultural).
+- Les Competències Específiques han de ser les REALS del decret corresponent a l'etapa. No te les inventis ni les parafrasegis de forma laxa; utilitza el text normatiu.
+- Cada CE ha de portar el seu prefix normatiu i número (ex: CE.1, CE.2).
+- Per a Primària (Decret 175/2022), assegura't que les CE corresponguin a l'àrea.
+- Per a ESO (Decret 171/2022), assegura't que les CE corresponguin a la matèria.
 
-ESTRUCTURA DE DADES:
-1. Identificació: Títol suggerent, curs exacte i àrea/àmbit.
+ESTRUCTURA TÈCNICA OBLIGATÒRIA:
+1. Identificació: Títol, curs exacte i àrea/àmbit oficial.
 2. Concreció Curricular:
-   - Competències Específiques: Mínim 2 o 3, amb codi CE.X i descripció íntegra del decret.
-   - Objectius: Formulats com "Capacitat + Saber + Finalitat" (ex: "Identificar les propietats de l'aigua per comprendre el seu cicle natural").
-   - Criteris d'Avaluació: Numerats oficialment (ex: 1.1, 1.2) i alineats amb les CE.
-   - Sabers: Llista de continguts (Sabers) del currículum de Catalunya.
-3. Seqüència Didàctica: 4 fases (Inicial, Desenvolupament, Estructuració, Aplicació) amb activitats riques en DUA.
-4. Mesures Universals: Estratègies de l'AOC i DUA per a tot l'alumnat.
+   - Competències Específiques: Llista detallada amb el codi CE.X i el text íntegre del decret.
+   - Objectius d'Aprenentatge: Formulats com "Infinitiu + Saber + Finalitat" (ex: "Utilitzar estratègies de càlcul mental per resoldre problemes de la vida quotidiana").
+   - Criteris d'Avaluació: Numerats oficialment (ex: 1.1, 1.2) i directament vinculats a les CE prèviament seleccionades.
+   - Sabers: Selecció de sabers i continguts del currículum de Catalunya.
+3. Seqüència Didàctica: 4 fases (Inicial, Desenvolupament, Estructuració, Aplicació) detallant activitats que promoguin el Disseny Universal per a l'Aprenentatge (DUA).
+4. Vectors i Suports: Explica com s'aborden els vectors (perspectiva de gènere, digitalització, etc.) i descriu les mesures universals.
 
-IMPORTANT: Tot el document ha d'estar redactat en Català amb un to acadèmic i professional.`;
+REQUISIT LINGÜÍSTIC:
+- Tot el document ha d'estar redactat en Català formal, amb terminologia pedagògica actualitzada.`;
 
-  const prompt = `Crea una Situació d'Aprenentatge completa i rigorosa basada en el següent input del docent: "${text}". Genera el JSON seguint l'esquema demanat.`;
+  const prompt = `Dissenya una Situació d'Aprenentatge oficial, rigorosa i completa basada en la següent informació: "${text}". Genera la resposta exclusivament en format JSON.`;
 
   try {
     const response = await ai.models.generateContent({
