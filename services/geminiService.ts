@@ -3,23 +3,17 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { SituacioAprenentatge } from "../types";
 
 export const extractLearningSituation = async (text: string): Promise<SituacioAprenentatge> => {
-  // Inicialització segons directrius: instància nova abans de la crida per assegurar la clau més actual.
-  // Es confia exclusivament en process.env.API_KEY segons les instruccions.
+  // Inicialització amb la clau de l'entorn (Netlify)
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  // Utilitzem gemini-3-pro-preview per a tasques complexes de raonament com la planificació LOMLOE.
-  const model = "gemini-3-pro-preview";
+  // Utilitzem gemini-3-flash-preview que té quotes molt més generoses i és excel·lent per a extraccions.
+  const model = "gemini-3-flash-preview";
   
   const systemInstruction = `Ets un expert en la normativa educativa LOMLOE i el currículum de Catalunya. 
-El teu objectiu és transformar notes, esborranys o descripcions de docents en una graella de Situació d'Aprenentatge (SA) completament formal i professional.
-Utilitza un llenguatge pedagògic precís (competències, sabers, vectors, DUA). 
-Si la informació és incompleta, infereix els elements curriculars més coherents basant-te en el curs i la matèria.`;
+Transforma el text del docent en una graella de Situació d'Aprenentatge (SA) formal.
+Si falta informació, dedueix els elements curriculars (competències, sabers) més adients segons el nivell.`;
 
-  const prompt = `Genera la graella de la Situació d'Aprenentatge per a la següent descripció:
----
-${text}
----
-És molt important que el JSON retornat segueixi exactament l'estructura definida i que els camps no estiguin buits.`;
+  const prompt = `Genera el JSON de la Situació d'Aprenentatge per a: "${text}"`;
 
   try {
     const response = await ai.models.generateContent({
@@ -27,7 +21,7 @@ ${text}
       contents: prompt,
       config: {
         systemInstruction: systemInstruction,
-        thinkingConfig: { thinkingBudget: 4000 }, // Donem pressupost de pensament per a la complexitat curricular
+        thinkingConfig: { thinkingBudget: 0 }, // Flash és ràpid, sovint no requereix pressupost de pensament alt per a JSON
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -122,13 +116,12 @@ ${text}
     });
 
     const output = response.text;
-    if (!output) throw new Error("La IA no ha generat cap resposta. Revisa el text d'entrada.");
+    if (!output) throw new Error("Resposta buida.");
     return JSON.parse(output.trim());
   } catch (err: any) {
-    console.error("Error en la crida a Gemini:", err);
-    if (err.message?.includes("API key")) {
-      throw new Error("Error de configuració: La clau API no és vàlida o no s'ha trobat al servidor Netlify.");
+    if (err.message?.includes("429")) {
+      throw new Error("QUOTA_EXHAUSTED");
     }
-    throw new Error(err.message || "S'ha produït un error en processar la petició.");
+    throw new Error(err.message || "Error desconegut.");
   }
 };
