@@ -15,7 +15,8 @@ import {
   HeadingLevel,
   VerticalAlign,
   PageBreak,
-  ShadingType
+  ShadingType,
+  BorderStyle
 } from 'docx';
 import saveAs from 'file-saver';
 
@@ -29,8 +30,9 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingWord, setIsExportingWord] = useState(false);
 
+  // Normalitza el format de les competències a CE.X.
   const formatCE = (text: string, index: number) => {
-    const cleanText = text.replace(/^CE\.\d+\.\s*/i, '');
+    const cleanText = text.replace(/^CE\.\d+\.\s*/i, '').trim();
     return `CE.${index + 1}. ${cleanText}`;
   };
 
@@ -40,6 +42,7 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
     const element = pdfRef.current;
     const titolNet = data.identificacio.titol.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     
+    // Configuració optimitzada per evitar pàgines en blanc i assegurar talls nets
     const opt = {
       margin: 0,
       filename: `Situacio_Aprenentatge_${titolNet}.pdf`,
@@ -49,7 +52,7 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
         useCORS: true, 
         logging: false,
         letterRendering: true,
-        windowWidth: 1122 
+        windowWidth: 1122 // Aproximadament l'amplada de l'A4 en horitzontal
       },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
       pagebreak: { mode: 'css', after: '.official-page' }
@@ -60,7 +63,7 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
       await html2pdf().set(opt).from(element).save();
     } catch (error) {
       console.error("Error PDF:", error);
-      alert("Error al generar el PDF. Si el problema persisteix, usa l'opció 'Imprimir' del navegador.");
+      alert("Error en generar el PDF. Si el format no és correcte, prova d'usar el botó 'Imprimir' i triar 'Anomena com a PDF'.");
     } finally {
       setIsExporting(false);
     }
@@ -70,33 +73,35 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
     setIsExportingWord(true);
     const titolNet = data.identificacio.titol.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     
+    // Funció auxiliar per crear cel·les estandarditzades
     const createCell = (text: string, bold = false, width = 100, isHeader = false, italic = false) => new TableCell({
       children: [new Paragraph({
         children: [new TextRun({ text: text || "", bold, italic, size: 20, font: "Arial" })],
-        spacing: { before: 80, after: 80 },
+        spacing: { before: 100, after: 100 },
         alignment: isHeader ? AlignmentType.CENTER : AlignmentType.LEFT
       })],
       width: { size: width, type: WidthType.PERCENTAGE },
       verticalAlign: VerticalAlign.TOP,
       shading: isHeader ? { fill: "F2F2F2", type: ShadingType.CLEAR } : undefined,
-      margins: { left: 100, right: 100, top: 100, bottom: 100 }
+      margins: { left: 120, right: 120, top: 120, bottom: 120 }
     });
 
     const createSectionHeader = (text: string) => new Paragraph({
-      children: [new TextRun({ text, bold: true, size: 24, font: "Arial", color: "000000" })],
-      spacing: { before: 200, after: 100 }
+      children: [new TextRun({ text, bold: true, size: 24, font: "Arial" })],
+      spacing: { before: 300, after: 150 }
     });
 
+    // Construcció del document de 5 pàgines
     const doc = new Document({
       sections: [{
         properties: {
           page: { size: { orientation: PageOrientation.LANDSCAPE } },
         },
         children: [
-          // PÀGINA 1: PORTADA
-          new Paragraph({ text: "Generalitat de Catalunya", bold: true, size: 28, font: "Arial" }),
-          new Paragraph({ text: "Departament d’Educació", bold: true, size: 28, font: "Arial", spacing: { after: 400 } }),
-          new Paragraph({ text: "Situació d’aprenentatge", heading: HeadingLevel.HEADING_1, alignment: AlignmentType.RIGHT, spacing: { after: 800 } }),
+          // PÀGINA 1
+          new Paragraph({ text: "Generalitat de Catalunya", bold: true, size: 24, font: "Arial" }),
+          new Paragraph({ text: "Departament d’Educació", bold: true, size: 24, font: "Arial", spacing: { after: 600 } }),
+          new Paragraph({ text: "Situació d’aprenentatge", heading: HeadingLevel.HEADING_1, alignment: AlignmentType.RIGHT, spacing: { after: 1200 } }),
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
             rows: [
@@ -107,7 +112,7 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
           }),
           new Paragraph({ children: [new PageBreak()] }),
 
-          // PÀGINA 2: DESCRIPCIÓ
+          // PÀGINA 2
           createSectionHeader("DESCRIPCIÓ (Context + Repte)"),
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
@@ -130,7 +135,7 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
           }),
           new Paragraph({ children: [new PageBreak()] }),
 
-          // PÀGINA 3: OBJECTIUS I CRITERIS
+          // PÀGINA 3
           createSectionHeader("OBJECTIUS D'APRENENTATGE I CRITERIS D'AVALUACIÓ"),
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
@@ -138,7 +143,7 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
               new TableRow({ children: [createCell("OBJECTIUS D'APRENENTATGE", true, 50, true), createCell("CRITERIS D'AVALUACIÓ", true, 50, true)] }),
               new TableRow({ children: [
                 createCell(data.concrecio_curricular.objectius.map((o, i) => `${i+1}. ${o}`).join("\n")),
-                createCell(data.concrecio_curricular.criteris_avaluacio.join("\n"))
+                createCell(data.concrecio_curricular.criteris_avaluacio.map((cr, i) => `${cr.includes('.') ? '' : (i+1) + '. '}${cr}`).join("\n"))
               ] })
             ]
           }),
@@ -148,13 +153,13 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
             rows: [
               new TableRow({ children: [createCell("#", true, 10, true), createCell("Saber", true, 60, true), createCell("Àrea o matèria", true, 30, true)] }),
               ...data.concrecio_curricular.sabers.map((s, i) => 
-                new TableRow({ children: [createCell((i+1).toString()), createCell(s.saber), createCell(s.area_materia)] })
+                new TableRow({ children: [createCell((i+1).toString(), false, 10, false), createCell(s.saber), createCell(s.area_materia)] })
               )
             ]
           }),
           new Paragraph({ children: [new PageBreak()] }),
 
-          // PÀGINA 4: DESENVOLUPAMENT
+          // PÀGINA 4
           createSectionHeader("DESENVOLUPAMENT DE LA SITUACIÓ D’APRENENTATGE"),
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
@@ -173,7 +178,7 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
           }),
           new Paragraph({ children: [new PageBreak()] }),
 
-          // PÀGINA 5: VECTORS I SUPORTS
+          // PÀGINA 5
           createSectionHeader("BREU DESCRIPCIÓ DE COM S’ABORDEN ELS VECTORS"),
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
@@ -189,10 +194,11 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
             width: { size: 100, type: WidthType.PERCENTAGE },
             rows: [
               new TableRow({ children: [createCell("Alumne", true, 35, true), createCell("Mesura i suport addicional o intensiu", true, 65, true)] }),
-              ...data.vectors_suports.suports_addicionals.length > 0 ? 
+              ...(data.vectors_suports.suports_addicionals.length > 0 ? 
                 data.vectors_suports.suports_addicionals.map(s => 
                   new TableRow({ children: [createCell(s.alumne), createCell(s.mesura)] })
-                ) : [new TableRow({ children: [createCell(""), createCell("")] })]
+                ) : [new TableRow({ children: [createCell("", false, 35), createCell("", false, 65)] })]
+              )
             ]
           }),
         ]
@@ -204,7 +210,7 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
       saveAs(blob, `Situacio_Aprenentatge_${titolNet}.docx`);
     } catch (err) {
       console.error("Error DOCX:", err);
-      alert("S'ha produït un error en generar el fitxer Word.");
+      alert("No s'ha pogut generar el fitxer Word correctament.");
     } finally {
       setIsExportingWord(false);
     }
@@ -235,18 +241,17 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
           page-break-after: always;
         }
         @media screen {
-           .official-page { margin-bottom: 30px; }
-           .official-container { padding-bottom: 50px; }
+           .official-page { margin-bottom: 40px; }
+           .official-container { padding-bottom: 60px; }
         }
-        .official-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; table-layout: fixed; }
-        .official-table td { border: 1.2px solid black; padding: 6px 12px; vertical-align: top; font-size: 13px; word-wrap: break-word; }
-        .official-table .label { width: 220px; font-weight: bold; background: #fcfcfc; }
+        .official-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; table-layout: fixed; border: 1.2px solid black; }
+        .official-table td { border: 1px solid black; padding: 8px 14px; vertical-align: top; font-size: 13px; word-wrap: break-word; }
+        .official-table .label { width: 220px; font-weight: bold; background: #fdfdfd; }
         .official-header { display: flex; align-items: center; gap: 15px; margin-bottom: 30px; }
-        .gov-logo { width: 45px; height: 45px; flex-shrink: 0; }
         .official-title-big { font-size: 64px; font-weight: 900; text-align: right; margin-top: 50px; line-height: 1; letter-spacing: -2px; color: #000; }
-        .section-title { font-weight: bold; font-size: 14px; margin-bottom: 5px; text-transform: uppercase; margin-top: 15px; color: #000; }
-        .box-content { border: 1.2px solid black; padding: 10px; min-height: 80px; font-size: 13px; margin-bottom: 12px; line-height: 1.4; }
-        .footnote-area { position: absolute; bottom: 15mm; left: 15mm; right: 15mm; font-size: 9px; line-height: 1.3; border-top: 1px solid #ddd; padding-top: 6px; color: #444; }
+        .section-title { font-weight: bold; font-size: 14px; margin-bottom: 5px; text-transform: uppercase; margin-top: 15px; color: #000; border-bottom: 1px solid #eee; padding-bottom: 2px; }
+        .box-content { border: 1.2px solid black; padding: 12px; min-height: 85px; font-size: 13px; margin-bottom: 12px; line-height: 1.5; }
+        .footnote-area { position: absolute; bottom: 15mm; left: 15mm; right: 15mm; font-size: 9px; line-height: 1.3; border-top: 1px solid #ddd; padding-top: 8px; color: #555; }
         .page-num { position: absolute; bottom: 10mm; right: 15mm; font-size: 11px; font-weight: bold; }
         
         @media print {
@@ -258,7 +263,7 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
       `}</style>
       
       <div ref={pdfRef} className="official-container">
-        {/* PÀGINA 1 */}
+        {/* PÀGINA 1: PORTADA */}
         <div className="official-page">
           <div className="official-header">
              <div className="w-12 h-12 bg-[#E30613] flex items-center justify-center">
@@ -292,12 +297,12 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
             </table>
           </div>
           <div className="footnote-area">
-            <p><sup>1</sup> Són els escenaris que l’alumnat es troba a la vida real i que es poden utilitzar per desenvolupar aprenentatges competencials.</p>
+            <p><sup>1</sup> Són els escenaris que l’alumnat es troba a la vida real i que es poden utilitzar per desenvolupar aprenentatges competencials que permetin resoldre els reptes i les qüestions que se’ls plantegen.</p>
           </div>
           <div className="page-num">Pàgina 1/5</div>
         </div>
 
-        {/* PÀGINA 2 */}
+        {/* PÀGINA 2: DESCRIPCIÓ I COMPETÈNCIES */}
         <div className="official-page">
           <div className="section-title">DESCRIPCIÓ (Context + Repte)</div>
           <div className="box-content h-32 overflow-hidden">{data.descripcio.context_repte}</div>
@@ -325,7 +330,7 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
           <div className="page-num">Pàgina 2/5</div>
         </div>
 
-        {/* PÀGINA 3 */}
+        {/* PÀGINA 3: OBJECTIUS, CRITERIS I SABERS */}
         <div className="official-page">
           <div className="flex border-t border-l border-r border-black bg-gray-50 font-bold text-xs uppercase text-center">
              <div className="flex-1 p-2 border-r border-black">OBJECTIUS D’APRENENTATGE</div>
@@ -365,7 +370,7 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
           <div className="page-num">Pàgina 3/5</div>
         </div>
 
-        {/* PÀGINA 4 */}
+        {/* PÀGINA 4: ACTIVITATS */}
         <div className="official-page">
           <div className="section-title">DESENVOLUPAMENT DE LA SITUACIÓ D’APRENENTATGE</div>
           <div className="box-content h-24 overflow-hidden">{data.desenvolupament.estrategies_metodologiques}</div>
@@ -379,32 +384,20 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
               </tr>
             </thead>
             <tbody>
-              <tr style={{ height: '85px' }}>
-                <td className="font-bold">Activitats inicials</td>
-                <td>{data.desenvolupament.activitats.inicials.descripcio}</td>
-                <td>{data.desenvolupament.activitats.inicials.temporitzacio}</td>
-              </tr>
-              <tr style={{ height: '110px' }}>
-                <td className="font-bold">Activitats de desenvolupament</td>
-                <td>{data.desenvolupament.activitats.desenvolupament.descripcio}</td>
-                <td>{data.desenvolupament.activitats.desenvolupament.temporitzacio}</td>
-              </tr>
-              <tr style={{ height: '85px' }}>
-                <td className="font-bold">Activitats d’estructuració</td>
-                <td>{data.desenvolupament.activitats.estructuracio.descripcio}</td>
-                <td>{data.desenvolupament.activitats.estructuracio.temporitzacio}</td>
-              </tr>
-              <tr style={{ height: '85px' }}>
-                <td className="font-bold">Activitats d’aplicació</td>
-                <td>{data.desenvolupament.activitats.aplicacio.descripcio}</td>
-                <td>{data.desenvolupament.activitats.aplicacio.temporitzacio}</td>
-              </tr>
+              {/* Cast as ActivitatDetall to avoid any implicit any issues */}
+              {(Object.entries(data.desenvolupament.activitats) as [string, ActivitatDetall][]).map(([key, act], idx) => (
+                <tr key={key} style={{ height: idx === 1 ? '100px' : '75px' }}>
+                  <td className="font-bold capitalize">{key.replace(/_/g, ' ')}</td>
+                  <td>{act.descripcio}</td>
+                  <td>{act.temporitzacio}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
           <div className="page-num">Pàgina 4/5</div>
         </div>
 
-        {/* PÀGINA 5 */}
+        {/* PÀGINA 5: VECTORS I SUPORTS */}
         <div className="official-page">
           <div className="section-title">BREU DESCRIPCIÓ DE COM S’ABORDEN ELS VECTORS</div>
           <div className="box-content h-28 italic overflow-hidden bg-gray-50/50">{data.vectors_suports.vectors_descripcio}</div>
@@ -422,7 +415,7 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
               {data.vectors_suports.suports_addicionals.length > 0 ? 
                 data.vectors_suports.suports_addicionals.map((s, i) => (
                   <tr key={i} style={{ height: '40px' }}><td>{s.alumne}</td><td>{s.mesura}</td></tr>
-                )) : <tr><td colSpan={2} className="h-12 text-slate-300 italic">No s'han especificat mesures</td></tr>
+                )) : <tr><td colSpan={2} className="h-12 text-slate-300 italic">No s'han especificat mesures addicionals per a cap alumne.</td></tr>
               }
             </tbody>
           </table>
@@ -430,7 +423,7 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
         </div>
       </div>
 
-      {/* FOOTER ACTIONS */}
+      {/* BOTONS D'ACCIO REFINATS */}
       <div className="max-w-[1200px] mx-auto mt-8 mb-20 flex flex-wrap justify-center gap-4 no-print px-4">
         <button 
           onClick={handleDownloadPDF} 
@@ -447,7 +440,7 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
           className={`flex items-center gap-3 bg-[#1B5E20] text-white px-10 py-5 rounded-2xl font-black shadow-2xl transition-all transform active:scale-95 ${isExportingWord ? 'opacity-50' : 'hover:bg-[#2E7D32] hover:-translate-y-1'}`}
         >
           {isExportingWord ? <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM6 20V4h7v5h5v11H6z"/></svg>}
-          {isExportingWord ? "GENERANT..." : "BAIXAR DOCX (WORD)"}
+          {isExportingWord ? "GENERANT..." : "BAIXAR WORD (DOCX)"}
         </button>
 
         <button 
