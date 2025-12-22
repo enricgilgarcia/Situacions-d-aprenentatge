@@ -1,303 +1,337 @@
 
 import React, { useRef, useState } from 'react';
 import { SituacioAprenentatge } from '../types';
-import { 
-  Document, 
-  Packer, 
-  Paragraph, 
-  Table, 
-  TableRow, 
-  TableCell, 
-  WidthType, 
-  TextRun, 
-  AlignmentType, 
-  HeadingLevel,
-  ShadingType,
-  PageOrientation
-} from 'docx';
-import saveAs from 'file-saver';
 
 interface TableDisplayProps {
   data: SituacioAprenentatge;
   onEdit: (data: SituacioAprenentatge) => void;
 }
 
-export const TableDisplay: React.FC<TableDisplayProps> = ({ data }) => {
+// Fixed: Added onEdit to the destructured props to resolve the "Cannot find name 'onEdit'" error.
+export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
   const pdfRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
-  const [isExportingWord, setIsExportingWord] = useState(false);
 
   const handleDownloadPDF = async () => {
     if (!pdfRef.current) return;
-    
     setIsExporting(true);
     const element = pdfRef.current;
     const titolNet = data.identificacio.titol.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     
-    // Configuració ultra-precisa per evitar espais en blanc i talls estranys
     const opt = {
-      margin: [10, 5, 10, 5],
-      filename: `SA_${titolNet || 'document'}.pdf`,
-      image: { type: 'jpeg', quality: 1.0 },
-      html2canvas: { 
-        scale: 2, 
-        useCORS: true, 
-        backgroundColor: "#ffffff",
-        logging: false,
-        letterRendering: true,
-        windowWidth: 1200 // Fixem l'amplada de la finestra per a una captura consistent
-      },
+      margin: [5, 5, 5, 5],
+      filename: `Situacio_Aprenentatge_${titolNet}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true, logging: false },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
-      pagebreak: { mode: 'css', before: '.page-break-before' }
+      pagebreak: { mode: 'css', after: '.official-page' }
     };
 
     try {
       // @ts-ignore
       await html2pdf().set(opt).from(element).save();
     } catch (error) {
-      console.error("Error generant el PDF:", error);
-      alert("S'ha produït un error. Recomanem utilitzar la funció d'Imprimir del navegador i triar 'Guardar com a PDF'.");
+      console.error("Error PDF:", error);
+      alert("Error al generar el PDF. Prova amb la funció d'imprimir.");
     } finally {
       setIsExporting(false);
     }
   };
 
-  const handleDownloadDOCX = async () => {
-    setIsExportingWord(true);
-
-    const createCell = (text: string, isHeader = false, colSpan = 1) => new TableCell({
-      children: [new Paragraph({
-        children: [new TextRun({ text: text || "", bold: isHeader, size: 20 })],
-        spacing: { before: 100, after: 100 }
-      })],
-      shading: isHeader ? { fill: "F1F5F9", type: ShadingType.CLEAR } : undefined,
-      columnSpan: colSpan,
-      margins: { top: 120, bottom: 120, left: 120, right: 120 },
-    });
-
-    const doc = new Document({
-      sections: [{
-        properties: {
-          page: {
-            size: { orientation: PageOrientation.LANDSCAPE },
-            margin: { top: 720, right: 720, bottom: 720, left: 720 },
-          },
-        },
-        children: [
-          new Paragraph({
-            text: "SITUACIÓ D'APRENENTATGE (LOMLOE)",
-            heading: HeadingLevel.HEADING_1,
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 400 },
-          }),
-          new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            rows: [
-              new TableRow({ children: [createCell("Títol", true), createCell(data.identificacio.titol)] }),
-              new TableRow({ children: [createCell("Curs", true), createCell(data.identificacio.curs)] }),
-              new TableRow({ children: [createCell("Àrea / Matèria", true), createCell(data.identificacio.area_materia_ambit)] }),
-            ],
-          }),
-          new Paragraph({ text: "DESCRIPCIÓ I CONTEXT", bold: true, spacing: { before: 400, after: 100 } }),
-          new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            rows: [new TableRow({ children: [createCell(data.descripcio.context_repte)] })],
-          }),
-          new Paragraph({ text: "CONCRECIÓ CURRICULAR", bold: true, spacing: { before: 400, after: 100 } }),
-          new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            rows: [
-              new TableRow({ children: [createCell("Competències i Criteris", true), createCell("Continguts/Sabers", true)] }),
-              new TableRow({ children: [
-                createCell("Criteris d'avaluació:\n" + data.concrecio_curricular.criteris_avaluacio.join("\n")),
-                createCell(data.concrecio_curricular.sabers.map(s => `• ${s.saber}`).join("\n"))
-              ]}),
-            ],
-          }),
-          new Paragraph({ text: "SEQÜÈNCIA DIDÀCTICA", bold: true, spacing: { before: 400, after: 100 } }),
-          new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            rows: [
-              new TableRow({ children: [createCell("Fase", true), createCell("Activitats", true)] }),
-              new TableRow({ children: [createCell("Inicial", true), createCell(data.desenvolupament.activitats.inicials)] }),
-              new TableRow({ children: [createCell("Desenvolupament", true), createCell(data.desenvolupament.activitats.desenvolupament)] }),
-              new TableRow({ children: [createCell("Estructuració", true), createCell(data.desenvolupament.activitats.estructuracio)] }),
-              new TableRow({ children: [createCell("Aplicació", true), createCell(data.desenvolupament.activitats.aplicacio)] }),
-            ],
-          }),
-        ],
-      }],
-    });
-
-    try {
-      const blob = await Packer.toBlob(doc);
-      saveAs(blob, `SA_${data.identificacio.titol.replace(/\s+/g, '_') || 'document'}.docx`);
-    } catch (error) {
-      console.error("Error Word:", error);
-      alert("Error en generar Word.");
-    } finally {
-      setIsExportingWord(false);
-    }
-  };
-
   return (
-    <div className="bg-slate-100 p-0 md:p-8 print:p-0 min-h-screen">
+    <div className="bg-slate-200 p-0 md:p-8 print:p-0 min-h-screen">
       <style>{`
-        .pdf-page { 
+        .official-page { 
           background: white; 
-          box-shadow: 0 0 20px rgba(0,0,0,0.1); 
-          padding: 0; 
-          margin: 0 auto;
-          width: 297mm;
-          min-height: 210mm;
+          width: 297mm; 
+          min-height: 210mm; 
+          padding: 15mm; 
+          margin: 0 auto 20px auto; 
+          box-shadow: 0 4px 20px rgba(0,0,0,0.1); 
           position: relative;
+          color: black;
+          font-family: Arial, Helvetica, sans-serif;
         }
-        .grid-container { display: grid; grid-template-columns: 1fr; border: 2px solid #1e293b; }
-        .grid-row { display: flex; border-bottom: 1px solid #1e293b; }
-        .grid-label { width: 220px; background: #f8fafc; padding: 12px; font-weight: 800; border-right: 1px solid #1e293b; font-size: 11px; text-transform: uppercase; flex-shrink: 0; }
-        .grid-content { padding: 12px; font-size: 13px; line-height: 1.5; flex-grow: 1; }
-        .header-title { background: #1e293b; color: white; padding: 15px; text-align: center; font-weight: 800; font-size: 18px; text-transform: uppercase; letter-spacing: 1px; }
-        .section-header { background: #e2e8f0; padding: 8px 12px; font-weight: 800; font-size: 12px; border-bottom: 2px solid #1e293b; border-top: 2px solid #1e293b; text-transform: uppercase; }
-        .list-item { margin-bottom: 6px; display: flex; gap: 8px; }
-        .list-num { font-weight: 800; color: #dc2626; min-width: 24px; font-size: 12px; }
+        .official-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        .official-table td { border: 1.5px solid black; padding: 10px; vertical-align: top; font-size: 13px; }
+        .official-table .label { width: 250px; font-weight: bold; background: #fcfcfc; }
+        .official-header-title { font-size: 56px; font-weight: bold; margin-top: 100px; text-align: right; }
+        .official-section-title { font-weight: bold; font-size: 14px; margin-bottom: 8px; text-transform: uppercase; }
+        .official-note { font-size: 10px; line-height: 1.2; margin-top: 20px; color: #333; }
+        .official-footer { position: absolute; bottom: 15mm; right: 15mm; text-align: right; font-size: 10px; }
+        .flex-table { display: flex; width: 100%; border: 1.5px solid black; }
+        .flex-col-table { flex: 1; padding: 10px; border-right: 1.5px solid black; }
+        .flex-col-table:last-child { border-right: none; }
+        .section-spacer { margin-bottom: 30px; }
         
         @media print {
-          body { background: white; }
-          .pdf-page { box-shadow: none; border: none; margin: 0; width: 100%; }
+          .official-page { box-shadow: none; margin: 0; width: 100%; min-height: 100vh; page-break-after: always; }
           .no-print { display: none !important; }
+          body { background: white; }
         }
       `}</style>
       
-      <div 
-        ref={pdfRef} 
-        className="pdf-page"
-      >
-        <div className="header-title">Situació d’aprenentatge (Decrets 175/2022 i 171/2022)</div>
-        
-        <div className="grid-container">
-          {/* Identificació */}
-          <div className="grid-row">
-            <div className="grid-label">Títol de la SA</div>
-            <div className="grid-content font-bold">{data.identificacio.titol}</div>
-          </div>
-          <div className="grid-row">
-            <div className="grid-label">Curs i Nivell</div>
-            <div className="grid-content">{data.identificacio.curs}</div>
-          </div>
-          <div className="grid-row">
-            <div className="grid-label">Àrea / Matèria / Àmbit</div>
-            <div className="grid-content">{data.identificacio.area_materia_ambit}</div>
-          </div>
-
-          <div className="section-header">1. Descripció, Context i Repte</div>
-          <div className="p-4 text-sm italic border-b border-slate-800 bg-slate-50">
-            {data.descripcio.context_repte}
-          </div>
-
-          <div className="section-header">2. Concreció Curricular</div>
-          <div className="flex border-b border-slate-800 min-h-[200px]">
-            <div className="w-1/2 border-r border-slate-800 p-4">
-              <h3 className="text-[10px] font-black uppercase mb-3 text-slate-400">Objectius d'Aprenentatge i Criteris</h3>
-              <div className="space-y-4">
-                <div>
-                  <h4 className="text-xs font-bold underline mb-2">Objectius:</h4>
-                  {data.concrecio_curricular.objectius.map((o, i) => (
-                    <div key={i} className="list-item">
-                      <span className="list-num">{i + 1}.</span>
-                      <span className="text-xs">{o}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-4">
-                  <h4 className="text-xs font-bold underline mb-2">Criteris d'avaluació (Normativa):</h4>
-                  {data.concrecio_curricular.criteris_avaluacio.map((cr, i) => (
-                    <div key={i} className="list-item">
-                      <span className="list-num">{cr.match(/^\d+\.?\d*/) ? "" : `${i+1}. `}</span>
-                      <span className="text-xs font-semibold text-slate-800">{cr}</span>
-                    </div>
-                  ))}
-                </div>
+      <div ref={pdfRef}>
+        {/* PÀGINA 1: PORTADA */}
+        <div className="official-page">
+          <div className="flex justify-between items-start">
+            <div className="flex gap-4 items-center">
+              <div className="w-12 h-12 bg-red-600 flex items-center justify-center">
+                <span className="text-white font-bold text-xs">GC</span>
+              </div>
+              <div>
+                <div className="font-bold text-sm">Generalitat de Catalunya</div>
+                <div className="font-bold text-sm">Departament d'Educació</div>
               </div>
             </div>
-            <div className="w-1/2 p-4 bg-slate-50">
-              <h3 className="text-[10px] font-black uppercase mb-3 text-slate-400">Sabers i Continguts Associats</h3>
+          </div>
+          
+          <div className="official-header-title">Situació d’aprenentatge<sup className="text-sm">1</sup></div>
+          
+          <div className="mt-20">
+            <table className="official-table">
+              <tbody>
+                <tr>
+                  <td className="label">Títol</td>
+                  <td>{data.identificacio.titol}</td>
+                </tr>
+                <tr>
+                  <td className="label">Curs (Nivell educatiu)</td>
+                  <td>{data.identificacio.curs}</td>
+                </tr>
+                <tr>
+                  <td className="label">Àrea / Matèria<sup className="text-[10px]">2</sup> / Àmbit<sup className="text-[10px]">3</sup></td>
+                  <td>{data.identificacio.area_materia_ambit}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div className="official-note border-t border-black pt-2">
+            <p><sup>1</sup> Són els escenaris que l’alumnat es troba a la vida real... [Model oficial]</p>
+            <p><sup>2</sup> A l’educació primària fem referència a les àrees...</p>
+            <p><sup>3</sup> Agrupació d’àrees o matèries...</p>
+          </div>
+          <div className="official-footer">Pàgina 1/5</div>
+        </div>
+
+        {/* PÀGINA 2: DESCRIPCIÓ I COMPETÈNCIES */}
+        <div className="official-page">
+          <div className="section-spacer">
+            <div className="official-section-title">DESCRIPCIÓ (Context<sup>4</sup> + Repte<sup>5</sup>)</div>
+            <div className="p-4 border-1.5 border-black min-h-[150px] text-sm">
+              <p className="italic text-slate-500 mb-2">Per què aquesta situació d’aprenentatge? Està relacionada amb alguna altra? Quin és el context? Quin repte planteja?</p>
+              {data.descripcio.context_repte}
+            </div>
+          </div>
+
+          <div className="section-spacer">
+            <div className="official-section-title">COMPETÈNCIES ESPECÍFIQUES</div>
+            <p className="text-[11px] mb-2">Amb la realització d’aquesta situació d’aprenentatge s’afavoreix l’assoliment de les competències específiques següents:</p>
+            <table className="official-table">
+              <thead>
+                <tr className="bg-slate-50 font-bold">
+                  <td>Competències específiques</td>
+                  <td className="w-1/3">Àrea o matèria</td>
+                </tr>
+              </thead>
+              <tbody>
+                {data.concrecio_curricular.competencies_especifiques.map((c, i) => (
+                  <tr key={i}>
+                    <td>{c.descripcio}</td>
+                    <td>{c.area_materia}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="section-spacer">
+            <div className="official-section-title">TRACTAMENT DE LES COMPETÈNCIES TRANSVERSALS<sup>6</sup></div>
+            <div className="p-4 border-1.5 border-black min-h-[80px] text-sm">
+              {data.descripcio.competencies_transversals}
+            </div>
+          </div>
+
+          <div className="official-footer">Pàgina 2/5</div>
+        </div>
+
+        {/* PÀGINA 3: OBJECTIUS, CRITERIS I SABERS */}
+        <div className="official-page">
+          <div className="flex-table mb-8">
+            <div className="flex-col-table">
+              <div className="text-center font-bold text-xs uppercase mb-1">OBJECTIUS D'APRENENTATGE<sup>7</sup></div>
+              <div className="text-center text-[10px] mb-2 italic">Què volem que aprengui l’alumnat i per a què? CAPACITAT + SABER + FINALITAT</div>
               <div className="space-y-2">
-                {data.concrecio_curricular.sabers.map((s, i) => (
-                  <div key={i} className="flex gap-2 items-start border-b border-slate-200 pb-2 last:border-0">
-                    <span className="text-red-600 font-bold">•</span>
-                    <div>
-                      <div className="text-xs font-bold">{s.saber}</div>
-                      <div className="text-[10px] text-slate-500">{s.area_materia}</div>
-                    </div>
+                {data.concrecio_curricular.objectius.map((o, i) => (
+                  <div key={i} className="flex gap-2 text-xs">
+                    <span className="font-bold">{i+1}</span>
+                    <span>{o}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="flex-col-table">
+              <div className="text-center font-bold text-xs uppercase mb-1">CRITERIS D'AVALUACIÓ<sup>8</sup></div>
+              <div className="text-center text-[10px] mb-2 italic">Com sabem que ho han après? ACCIÓ + SABER + CONTEXT</div>
+              <div className="space-y-2">
+                {data.concrecio_curricular.criteris_avaluacio.map((cr, i) => (
+                  <div key={i} className="flex gap-2 text-xs">
+                    <span className="font-bold">{cr.includes('.') ? "" : i+1}</span>
+                    <span>{cr}</span>
                   </div>
                 ))}
               </div>
             </div>
           </div>
 
-          <div className="section-header">3. Seqüència Didàctica (Activitats)</div>
-          <div className="grid grid-cols-4 border-b border-slate-800 bg-white">
-            <div className="p-3 border-r border-slate-800">
-              <div className="text-[9px] font-bold text-red-600 mb-1">FASE INICIAL</div>
-              <p className="text-[11px] leading-tight">{data.desenvolupament.activitats.inicials}</p>
-            </div>
-            <div className="p-3 border-r border-slate-800 bg-slate-50">
-              <div className="text-[9px] font-bold text-red-600 mb-1">FASE DESENVOLUPAMENT</div>
-              <p className="text-[11px] leading-tight">{data.desenvolupament.activitats.desenvolupament}</p>
-            </div>
-            <div className="p-3 border-r border-slate-800">
-              <div className="text-[9px] font-bold text-red-600 mb-1">FASE ESTRUCTURACIÓ</div>
-              <p className="text-[11px] leading-tight">{data.desenvolupament.activitats.estructuracio}</p>
-            </div>
-            <div className="p-3 bg-slate-50">
-              <div className="text-[9px] font-bold text-red-600 mb-1">FASE APLICACIÓ</div>
-              <p className="text-[11px] leading-tight">{data.desenvolupament.activitats.aplicacio}</p>
+          <div className="section-spacer">
+            <div className="official-section-title">SABERS</div>
+            <p className="text-[11px] mb-2">Amb la realització d’aquesta situació d’aprenentatge es tractaran els sabers següents:</p>
+            <table className="official-table">
+              <thead>
+                <tr className="bg-slate-50 font-bold">
+                  <td className="w-12 text-center">#</td>
+                  <td>Saber</td>
+                  <td className="w-1/3">Àrea o matèria</td>
+                </tr>
+              </thead>
+              <tbody>
+                {data.concrecio_curricular.sabers.map((s, i) => (
+                  <tr key={i}>
+                    <td className="text-center">{i+1}</td>
+                    <td>{s.saber}</td>
+                    <td>{s.area_materia}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="official-footer">Pàgina 3/5</div>
+        </div>
+
+        {/* PÀGINA 4: DESENVOLUPAMENT I ACTIVITATS */}
+        <div className="official-page">
+          <div className="section-spacer">
+            <div className="official-section-title">DESENVOLUPAMENT DE LA SITUACIÓ D’APRENENTATGE</div>
+            <div className="p-4 border-1.5 border-black min-h-[120px] text-sm">
+              <p className="italic text-slate-500 mb-2">Quines són les principals estratègies metodològiques? Quins tipus d’agrupament? Materials i recursos?</p>
+              {data.desenvolupament.estrategies_metodologiques}
             </div>
           </div>
 
-          <div className="section-header">4. Atenció a la Diversitat (DUA) i Vectors</div>
-          <div className="flex bg-slate-50 p-4 gap-8">
-            <div className="flex-1">
-              <h4 className="text-[10px] font-bold uppercase mb-1 text-slate-500">Mesures Universals</h4>
-              <p className="text-xs">{data.vectors_suports.suports_universals}</p>
-            </div>
-            <div className="flex-1">
-              <h4 className="text-[10px] font-bold uppercase mb-1 text-slate-500">Vectors del Currículum</h4>
-              <p className="text-xs italic">{data.vectors_suports.vectors_descripcio}</p>
+          <div className="section-spacer">
+            <div className="official-section-title">ACTIVITATS D’APRENENTATGE I D’AVALUACIÓ</div>
+            <table className="official-table">
+              <thead>
+                <tr className="bg-slate-50 font-bold">
+                  <td className="w-1/4">Fase</td>
+                  <td>Descripció de l’activitat d’aprenentatge i d’avaluació</td>
+                  <td className="w-1/6">Temporització</td>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="font-bold">Activitats inicials<br/><span className="text-[10px] font-normal italic">Què en sabem?</span></td>
+                  <td>{data.desenvolupament.activitats.inicials.descripcio}</td>
+                  <td>{data.desenvolupament.activitats.inicials.temporitzacio}</td>
+                </tr>
+                <tr>
+                  <td className="font-bold">Activitats de desenvolupament<br/><span className="text-[10px] font-normal italic">Aprenem nous sabers</span></td>
+                  <td>{data.desenvolupament.activitats.desenvolupament.descripcio}</td>
+                  <td>{data.desenvolupament.activitats.desenvolupament.temporitzacio}</td>
+                </tr>
+                <tr>
+                  <td className="font-bold">Activitats d’estructuració<br/><span className="text-[10px] font-normal italic">Què hem après?</span></td>
+                  <td>{data.desenvolupament.activitats.estructuracio.descripcio}</td>
+                  <td>{data.desenvolupament.activitats.estructuracio.temporitzacio}</td>
+                </tr>
+                <tr>
+                  <td className="font-bold">Activitats d’aplicació<br/><span className="text-[10px] font-normal italic">Apliquem el que hem après</span></td>
+                  <td>{data.desenvolupament.activitats.aplicacio.descripcio}</td>
+                  <td>{data.desenvolupament.activitats.aplicacio.temporitzacio}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div className="official-footer">Pàgina 4/5</div>
+        </div>
+
+        {/* PÀGINA 5: VECTORS I SUPORTS */}
+        <div className="official-page">
+          <div className="section-spacer">
+            <div className="official-section-title">BREU DESCRIPCIÓ DE COM S’ABORDEN ELS VECTORS<sup>9</sup></div>
+            <div className="p-4 border-1.5 border-black min-h-[100px] text-sm italic">
+              {data.vectors_suports.vectors_descripcio}
             </div>
           </div>
+
+          <div className="section-spacer">
+            <div className="official-section-title">MESURES I SUPORTS UNIVERSALS<sup>10</sup></div>
+            <div className="p-4 border-1.5 border-black min-h-[100px] text-sm">
+              {data.vectors_suports.suports_universals}
+            </div>
+          </div>
+
+          <div className="section-spacer">
+            <div className="official-section-title">MESURES I SUPORTS ADDICIONALS<sup>11</sup> O INTENSIUS<sup>12</sup></div>
+            <p className="text-[11px] mb-2">Quines mesures o suports addicionals o intensius es proposen per a cadascun dels alumnes següents:</p>
+            <table className="official-table">
+              <thead>
+                <tr className="bg-slate-50 font-bold">
+                  <td className="w-1/3">Alumne</td>
+                  <td>Mesura i suport addicional o intensiu</td>
+                </tr>
+              </thead>
+              <tbody>
+                {data.vectors_suports.suports_addicionals.length > 0 ? (
+                  data.vectors_suports.suports_addicionals.map((s, i) => (
+                    <tr key={i}>
+                      <td>{s.alumne}</td>
+                      <td>{s.mesura}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td className="h-12"></td>
+                    <td></td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          <div className="official-footer">Pàgina 5/5</div>
         </div>
       </div>
 
+      {/* BOTONS D'ACCIO */}
       <div className="max-w-[297mm] mx-auto mt-8 mb-20 flex flex-wrap justify-center gap-4 no-print px-4">
         <button 
           onClick={handleDownloadPDF} 
           disabled={isExporting}
-          className={`flex items-center gap-3 bg-red-600 text-white px-10 py-4 rounded-2xl font-black shadow-2xl transition-all transform active:scale-95 ${isExporting ? 'opacity-50' : 'hover:bg-red-700 hover:-translate-y-1'}`}
+          className={`flex items-center gap-3 bg-slate-900 text-white px-10 py-5 rounded-full font-black shadow-2xl transition-all transform active:scale-95 ${isExporting ? 'opacity-50' : 'hover:bg-black hover:-translate-y-1'}`}
         >
           {isExporting ? (
-            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
           ) : (
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
           )}
-          {isExporting ? "GENERANT..." : "DESCARREGAR PDF"}
+          {isExporting ? "GENERANT PDF..." : "BAIXAR MODEL OFICIAL (PDF)"}
         </button>
         
         <button 
-          onClick={handleDownloadDOCX} 
-          disabled={isExportingWord}
-          className={`flex items-center gap-3 bg-blue-700 text-white px-10 py-4 rounded-2xl font-black shadow-2xl transition-all transform active:scale-95 ${isExportingWord ? 'opacity-50' : 'hover:bg-blue-800 hover:-translate-y-1'}`}
+          onClick={() => window.print()} 
+          className="flex items-center gap-3 bg-white text-slate-800 border-2 border-slate-300 px-10 py-5 rounded-full font-black shadow-lg hover:bg-slate-50 transition-all transform hover:-translate-y-1 active:scale-95"
         >
-          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM6 20V4h7v5h5v11H6z"/></svg>
-          {isExportingWord ? "GENERANT..." : "EXPORTAR A WORD"}
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+          IMPRIMIR / GUARDAR
         </button>
 
         <button 
-          onClick={() => window.print()} 
-          className="flex items-center gap-3 bg-white text-slate-800 border-2 border-slate-200 px-10 py-4 rounded-2xl font-black shadow-lg hover:bg-slate-50 transition-all transform hover:-translate-y-1 active:scale-95"
+          onClick={() => onEdit(data)} 
+          className="flex items-center gap-3 bg-slate-100 text-slate-600 border border-slate-200 px-10 py-5 rounded-full font-bold hover:bg-white transition-all"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-          IMPRIMIR
+          TORNA A L'EDITOR
         </button>
       </div>
     </div>

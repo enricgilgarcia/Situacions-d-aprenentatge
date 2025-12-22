@@ -14,6 +14,11 @@ export interface SuportAddicional {
   mesura: string;
 }
 
+export interface ActivitatDetall {
+  descripcio: string;
+  temporitzacio: string;
+}
+
 export interface SituacioAprenentatge {
   identificacio: {
     titol: string;
@@ -31,12 +36,12 @@ export interface SituacioAprenentatge {
     sabers: SaberItem[];
   };
   desenvolupament: {
-    estrategies_materials: string;
+    estrategies_metodologiques: string;
     activitats: {
-      inicials: string;
-      desenvolupament: string;
-      estructuracio: string;
-      aplicacio: string;
+      inicials: ActivitatDetall;
+      desenvolupament: ActivitatDetall;
+      estructuracio: ActivitatDetall;
+      aplicacio: ActivitatDetall;
     };
   };
   vectors_suports: {

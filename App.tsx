@@ -56,20 +56,26 @@ const App: React.FC = () => {
   const handleOpenKeySelector = async () => {
     if ((window as any).aistudio) {
       await (window as any).aistudio.openSelectKey();
-      setError(null); // Intentem netejar l'error per si volen re-provar
+      setError(null);
     }
   };
 
   const handleGenerate = async () => {
     if (!inputText.trim()) return;
+
+    // Check if an API key has been selected before proceeding
+    if ((window as any).aistudio && !await (window as any).aistudio.hasSelectedApiKey()) {
+      await (window as any).aistudio.openSelectKey();
+    }
+
     setIsLoading(true);
     setError(null);
     try {
       const data = await extractLearningSituation(inputText);
       setResult(data);
     } catch (err: any) {
-      if (err.message === "QUOTA_EXHAUSTED") {
-        setError("S'ha esgotat la quota de la clau compartida. Pots utilitzar la teva pròpia clau gratuïta d'AI Studio per continuar.");
+      if (err.message === "QUOTA_EXHAUSTED" || err.message === "KEY_NOT_FOUND") {
+        setError("La clau API no és vàlida o s'ha esgotat la quota. Si us plau, selecciona una clau API d'un projecte amb facturació per continuar.");
       } else {
         setError(err.message || "S'ha produït un error inesperat.");
       }
@@ -134,12 +140,12 @@ const App: React.FC = () => {
                   <span className="text-xl">⚠️</span>
                   <p className="font-medium">{error}</p>
                 </div>
-                {error.includes("quota") && (
+                {(error.includes("quota") || error.includes("clau")) && (
                   <button 
                     onClick={handleOpenKeySelector}
                     className="w-full py-3 bg-white border border-red-200 text-red-600 rounded-xl text-sm font-bold hover:bg-red-100 transition-colors"
                   >
-                    Utilitzar la meva clau API d'AI Studio (Gratuït)
+                    Configurar clau API d'AI Studio
                   </button>
                 )}
               </div>
