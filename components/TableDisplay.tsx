@@ -42,7 +42,7 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
     const element = pdfRef.current;
     const titolNet = data.identificacio.titol.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     
-    // Configuració optimitzada per html2pdf per evitar pàgines en blanc i assegurar talls nets
+    // Configuració optimitzada per evitar pàgines en blanc
     const opt = {
       margin: 0,
       filename: `Situacio_Aprenentatge_${titolNet}.pdf`,
@@ -56,7 +56,7 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
         scrollY: 0
       },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape', compress: true },
-      pagebreak: { mode: ['css', 'legacy'], after: '.official-page' }
+      pagebreak: { mode: 'css', after: '.official-page' }
     };
 
     try {
@@ -64,7 +64,7 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
       await html2pdf().set(opt).from(element).save();
     } catch (error) {
       console.error("Error PDF:", error);
-      alert("Error al generar el PDF. Si el format no és perfecte, prova d'usar el botó 'Imprimir' i triar 'Anomena com a PDF'.");
+      alert("Error al generar el PDF. Si el format no és perfecte, recorda que pots usar 'Imprimir' i triar 'Anomena com a PDF'.");
     } finally {
       setIsExporting(false);
     }
@@ -74,24 +74,35 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
     setIsExportingWord(true);
     const titolNet = data.identificacio.titol.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     
-    // Estils de cel·la compartits per al document Word
-    const createCell = (text: string, bold = false, width = 100, isHeader = false, italic = false) => new TableCell({
-      children: [new Paragraph({
-        children: [new TextRun({ text: text || "", bold, italic, size: 20, font: "Arial" })],
-        spacing: { before: 120, after: 120 },
-        alignment: isHeader ? AlignmentType.CENTER : AlignmentType.LEFT
-      })],
-      width: { size: width, type: WidthType.PERCENTAGE },
-      verticalAlign: VerticalAlign.TOP,
-      shading: isHeader ? { fill: "F2F2F2", type: ShadingType.CLEAR } : undefined,
-      margins: { left: 144, right: 144, top: 120, bottom: 120 },
-      borders: {
-        top: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-        bottom: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-        left: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-        right: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
-      }
-    });
+    // Funció per crear cel·les que imitin la visualització web
+    const createCell = (text: string, options: { 
+      bold?: boolean, 
+      width?: number, 
+      isHeader?: boolean, 
+      italic?: boolean, 
+      align?: AlignmentType,
+      size?: number
+    } = {}) => {
+      const { bold = false, width = 100, isHeader = false, italic = false, align = AlignmentType.LEFT, size = 20 } = options;
+      
+      return new TableCell({
+        children: [new Paragraph({
+          children: [new TextRun({ text: text || "", bold, italic, size, font: "Arial" })],
+          spacing: { before: 140, after: 140 },
+          alignment: align
+        })],
+        width: { size: width, type: WidthType.PERCENTAGE },
+        verticalAlign: VerticalAlign.CENTER,
+        shading: isHeader ? { fill: "F9FAFB", type: ShadingType.CLEAR } : undefined,
+        margins: { left: 160, right: 160, top: 100, bottom: 100 },
+        borders: {
+          top: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
+          bottom: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
+          left: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
+          right: { style: BorderStyle.SINGLE, size: 1, color: "000000" },
+        }
+      });
+    };
 
     const createSectionTitle = (text: string) => new Paragraph({
       children: [new TextRun({ text, bold: true, size: 24, font: "Arial" })],
@@ -104,16 +115,16 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
           page: { size: { orientation: PageOrientation.LANDSCAPE } },
         },
         children: [
-          // PÀGINA 1: Identificació
-          new Paragraph({ text: "Generalitat de Catalunya", bold: true, size: 26, font: "Arial" }),
-          new Paragraph({ text: "Departament d’Educació", bold: true, size: 26, font: "Arial", spacing: { after: 600 } }),
-          new Paragraph({ text: "Situació d’aprenentatge", heading: HeadingLevel.HEADING_1, alignment: AlignmentType.RIGHT, spacing: { after: 1000 } }),
+          // PÀGINA 1: Portada
+          new Paragraph({ text: "Generalitat de Catalunya", bold: true, size: 28, font: "Arial" }),
+          new Paragraph({ text: "Departament d’Educació", bold: true, size: 28, font: "Arial", spacing: { after: 600 } }),
+          new Paragraph({ text: "Situació d’aprenentatge", heading: HeadingLevel.HEADING_1, alignment: AlignmentType.RIGHT, spacing: { after: 1200 } }),
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
             rows: [
-              new TableRow({ children: [createCell("Títol", true, 30, true), createCell(data.identificacio.titol)] }),
-              new TableRow({ children: [createCell("Curs (Nivell educatiu)", true, 30, true), createCell(data.identificacio.curs)] }),
-              new TableRow({ children: [createCell("Àrea / Matèria / Àmbit", true, 30, true), createCell(data.identificacio.area_materia_ambit)] }),
+              new TableRow({ children: [createCell("Títol", { bold: true, width: 25, isHeader: true }), createCell(data.identificacio.titol, { width: 75 })] }),
+              new TableRow({ children: [createCell("Curs (Nivell educatiu)", { bold: true, width: 25, isHeader: true }), createCell(data.identificacio.curs, { width: 75 })] }),
+              new TableRow({ children: [createCell("Àrea / Matèria / Àmbit", { bold: true, width: 25, isHeader: true }), createCell(data.identificacio.area_materia_ambit, { width: 75 })] }),
             ]
           }),
           new Paragraph({ children: [new PageBreak()] }),
@@ -128,9 +139,9 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
             rows: [
-              new TableRow({ children: [createCell("Competències específiques", true, 70, true), createCell("Àrea o matèria", true, 30, true)] }),
+              new TableRow({ children: [createCell("Competències específiques", { bold: true, width: 70, isHeader: true, align: AlignmentType.CENTER }), createCell("Àrea o matèria", { bold: true, width: 30, isHeader: true, align: AlignmentType.CENTER })] }),
               ...data.concrecio_curricular.competencies_especifiques.map((c, i) => 
-                new TableRow({ children: [createCell(formatCE(c.descripcio, i)), createCell(c.area_materia)] })
+                new TableRow({ children: [createCell(formatCE(c.descripcio, i), { width: 70 }), createCell(c.area_materia, { width: 30 })] })
               )
             ]
           }),
@@ -146,10 +157,10 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
             rows: [
-              new TableRow({ children: [createCell("OBJECTIUS D'APRENENTATGE", true, 50, true), createCell("CRITERIS D'AVALUACIÓ", true, 50, true)] }),
+              new TableRow({ children: [createCell("OBJECTIUS D'APRENENTATGE", { bold: true, width: 50, isHeader: true, align: AlignmentType.CENTER }), createCell("CRITERIS D'AVALUACIÓ", { bold: true, width: 50, isHeader: true, align: AlignmentType.CENTER })] }),
               new TableRow({ children: [
-                createCell(data.concrecio_curricular.objectius.map((o, i) => `${i+1}. ${o}`).join("\n")),
-                createCell(data.concrecio_curricular.criteris_avaluacio.map((cr, i) => `${cr.includes('.') ? '' : (i+1) + '. '}${cr}`).join("\n"))
+                createCell(data.concrecio_curricular.objectius.map((o, i) => `${i+1}. ${o}`).join("\n"), { width: 50 }),
+                createCell(data.concrecio_curricular.criteris_avaluacio.map((cr, i) => `${cr.includes('.') ? '' : (i+1) + '. '}${cr}`).join("\n"), { width: 50 })
               ] })
             ]
           }),
@@ -157,9 +168,9 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
             rows: [
-              new TableRow({ children: [createCell("#", true, 10, true), createCell("Saber", true, 60, true), createCell("Àrea o matèria", true, 30, true)] }),
+              new TableRow({ children: [createCell("#", { bold: true, width: 10, isHeader: true, align: AlignmentType.CENTER }), createCell("Saber", { bold: true, width: 60, isHeader: true, align: AlignmentType.CENTER }), createCell("Àrea o matèria", { bold: true, width: 30, isHeader: true, align: AlignmentType.CENTER })] }),
               ...data.concrecio_curricular.sabers.map((s, i) => 
-                new TableRow({ children: [createCell((i+1).toString(), false, 10), createCell(s.saber), createCell(s.area_materia)] })
+                new TableRow({ children: [createCell((i+1).toString(), { width: 10, align: AlignmentType.CENTER }), createCell(s.saber, { width: 60 }), createCell(s.area_materia, { width: 30 })] })
               )
             ]
           }),
@@ -175,11 +186,11 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
             rows: [
-              new TableRow({ children: [createCell("Fase", true, 25, true), createCell("Descripció de l'activitat", true, 60, true), createCell("Temporització", true, 15, true)] }),
-              new TableRow({ children: [createCell("Activitats inicials", true), createCell(data.desenvolupament.activitats.inicials.descripcio), createCell(data.desenvolupament.activitats.inicials.temporitzacio)] }),
-              new TableRow({ children: [createCell("Activitats de desenvolupament", true), createCell(data.desenvolupament.activitats.desenvolupament.descripcio), createCell(data.desenvolupament.activitats.desenvolupament.temporitzacio)] }),
-              new TableRow({ children: [createCell("Activitats d'estructuració", true), createCell(data.desenvolupament.activitats.estructuracio.descripcio), createCell(data.desenvolupament.activitats.estructuracio.temporitzacio)] }),
-              new TableRow({ children: [createCell("Activitats d'aplicació", true), createCell(data.desenvolupament.activitats.aplicacio.descripcio), createCell(data.desenvolupament.activitats.aplicacio.temporitzacio)] }),
+              new TableRow({ children: [createCell("Fase", { bold: true, width: 25, isHeader: true, align: AlignmentType.CENTER }), createCell("Descripció de l'activitat", { bold: true, width: 60, isHeader: true, align: AlignmentType.CENTER }), createCell("Temporització", { bold: true, width: 15, isHeader: true, align: AlignmentType.CENTER })] }),
+              new TableRow({ children: [createCell("Activitats inicials", { bold: true }), createCell(data.desenvolupament.activitats.inicials.descripcio), createCell(data.desenvolupament.activitats.inicials.temporitzacio, { align: AlignmentType.CENTER })] }),
+              new TableRow({ children: [createCell("Activitats de desenvolupament", { bold: true }), createCell(data.desenvolupament.activitats.desenvolupament.descripcio), createCell(data.desenvolupament.activitats.desenvolupament.temporitzacio, { align: AlignmentType.CENTER })] }),
+              new TableRow({ children: [createCell("Activitats d'estructuració", { bold: true }), createCell(data.desenvolupament.activitats.estructuracio.descripcio), createCell(data.desenvolupament.activitats.estructuracio.temporitzacio, { align: AlignmentType.CENTER })] }),
+              new TableRow({ children: [createCell("Activitats d'aplicació", { bold: true }), createCell(data.desenvolupament.activitats.aplicacio.descripcio), createCell(data.desenvolupament.activitats.aplicacio.temporitzacio, { align: AlignmentType.CENTER })] }),
             ]
           }),
           new Paragraph({ children: [new PageBreak()] }),
@@ -188,7 +199,7 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
           createSectionTitle("BREU DESCRIPCIÓ DE COM S’ABORDEN ELS VECTORS"),
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
-            rows: [new TableRow({ children: [createCell(data.vectors_suports.vectors_descripcio, false, 100, false, true)] })]
+            rows: [new TableRow({ children: [createCell(data.vectors_suports.vectors_descripcio, { italic: true })] })]
           }),
           createSectionTitle("MESURES I SUPORTS UNIVERSALS"),
           new Table({
@@ -199,11 +210,11 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
             rows: [
-              new TableRow({ children: [createCell("Alumne", true, 35, true), createCell("Mesura i suport addicional o intensiu", true, 65, true)] }),
+              new TableRow({ children: [createCell("Alumne", { bold: true, width: 35, isHeader: true, align: AlignmentType.CENTER }), createCell("Mesura i suport addicional o intensiu", { bold: true, width: 65, isHeader: true, align: AlignmentType.CENTER })] }),
               ...(data.vectors_suports.suports_addicionals.length > 0 ? 
                 data.vectors_suports.suports_addicionals.map(s => 
-                  new TableRow({ children: [createCell(s.alumne), createCell(s.mesura)] })
-                ) : [new TableRow({ children: [createCell("", false, 35), createCell("", false, 65)] })]
+                  new TableRow({ children: [createCell(s.alumne, { width: 35 }), createCell(s.mesura, { width: 65 })] })
+                ) : [new TableRow({ children: [createCell("Sense dades", { italic: true, align: AlignmentType.CENTER, width: 35 }), createCell("Sense dades", { italic: true, align: AlignmentType.CENTER, width: 65 })] })]
               )
             ]
           }),
@@ -230,11 +241,12 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
           margin: 0 auto;
           display: flex;
           flex-direction: column;
+          align-items: center;
         }
         .official-page { 
           background: white; 
           width: 297mm; 
-          height: 209mm; /* Ajustat per evitar talls micro-pixels i pàgines en blanc */
+          height: 209mm; 
           padding: 15mm; 
           margin: 0;
           box-shadow: 0 4px 30px rgba(0,0,0,0.1); 
@@ -252,7 +264,7 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
         }
         .official-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; table-layout: fixed; border: 1.2px solid black; }
         .official-table td { border: 1px solid black; padding: 10px 14px; vertical-align: top; font-size: 13px; word-wrap: break-word; line-height: 1.4; }
-        .official-table .label { width: 220px; font-weight: bold; background: #fafafa; }
+        .official-table .label { width: 25%; font-weight: bold; background: #f9fafb; }
         .official-header { display: flex; align-items: center; gap: 15px; margin-bottom: 30px; }
         .official-title-big { font-size: 64px; font-weight: 900; text-align: right; margin-top: 50px; line-height: 1; letter-spacing: -2px; color: #000; }
         .section-title { font-weight: bold; font-size: 14px; margin-bottom: 6px; text-transform: uppercase; margin-top: 15px; color: #000; border-bottom: 1px solid #eee; }
@@ -316,9 +328,9 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
           <div className="section-title">COMPETÈNCIES ESPECÍFIQUES</div>
           <table className="official-table">
             <thead>
-              <tr className="bg-gray-50 font-bold">
-                <td>Competències específiques</td>
-                <td className="w-1/3">Àrea o matèria</td>
+              <tr className="bg-gray-50 font-bold text-center">
+                <td className="w-[70%]">Competències específiques</td>
+                <td className="w-[30%]">Àrea o matèria</td>
               </tr>
             </thead>
             <tbody>
@@ -383,7 +395,7 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
           <div className="section-title mt-4">ACTIVITATS D’APRENENTATGE I D’AVALUACIÓ</div>
           <table className="official-table">
             <thead>
-              <tr className="bg-gray-100 font-bold">
+              <tr className="bg-gray-100 font-bold text-center">
                 <td className="w-1/4">Fase</td>
                 <td>Descripció de l’activitat</td>
                 <td className="w-1/6">Temporització</td>
@@ -393,22 +405,22 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
               <tr style={{ height: '75px' }}>
                 <td className="font-bold">Activitats inicials</td>
                 <td>{data.desenvolupament.activitats.inicials.descripcio}</td>
-                <td>{data.desenvolupament.activitats.inicials.temporitzacio}</td>
+                <td className="text-center">{data.desenvolupament.activitats.inicials.temporitzacio}</td>
               </tr>
               <tr style={{ height: '100px' }}>
                 <td className="font-bold">Activitats de desenvolupament</td>
                 <td>{data.desenvolupament.activitats.desenvolupament.descripcio}</td>
-                <td>{data.desenvolupament.activitats.desenvolupament.temporitzacio}</td>
+                <td className="text-center">{data.desenvolupament.activitats.desenvolupament.temporitzacio}</td>
               </tr>
               <tr style={{ height: '75px' }}>
                 <td className="font-bold">Activitats d'estructuració</td>
                 <td>{data.desenvolupament.activitats.estructuracio.descripcio}</td>
-                <td>{data.desenvolupament.activitats.estructuracio.temporitzacio}</td>
+                <td className="text-center">{data.desenvolupament.activitats.estructuracio.temporitzacio}</td>
               </tr>
               <tr style={{ height: '75px' }}>
                 <td className="font-bold">Activitats d'aplicació</td>
                 <td>{data.desenvolupament.activitats.aplicacio.descripcio}</td>
-                <td>{data.desenvolupament.activitats.aplicacio.temporitzacio}</td>
+                <td className="text-center">{data.desenvolupament.activitats.aplicacio.temporitzacio}</td>
               </tr>
             </tbody>
           </table>
@@ -424,7 +436,7 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
           <div className="section-title">MESURES I SUPORTS ADDICIONALS O INTENSIUS</div>
           <table className="official-table">
             <thead>
-              <tr className="bg-gray-50 font-bold">
+              <tr className="bg-gray-50 font-bold text-center">
                 <td className="w-1/3">Alumne</td>
                 <td>Mesura i suport addicional o intensiu</td>
               </tr>
