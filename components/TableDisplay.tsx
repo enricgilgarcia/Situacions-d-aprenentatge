@@ -42,9 +42,11 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
     const element = pdfRef.current;
     const titolNet = data.identificacio.titol.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     
-    // Configuració ultra-precisa per evitar pàgines en blanc
+    // Afegim una classe temporal per eliminar marges durant l'exportació
+    element.classList.add('is-exporting-pdf');
+
     const opt = {
-      margin: [0, 0, 0, 0],
+      margin: 0,
       filename: `Situacio_Aprenentatge_${titolNet}.pdf`,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: { 
@@ -52,13 +54,14 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
         useCORS: true, 
         logging: false,
         letterRendering: true,
-        windowWidth: 1122, // 297mm exactes a 96dpi
+        windowWidth: 1122, // Amplada exacta A4 horitzontal a 96dpi
         scrollY: 0,
         x: 0,
         y: 0
       },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape', compress: true },
-      pagebreak: { mode: 'css', after: '.official-page' }
+      // Utilitzem només 'css' per respectar el nostre selector :not(:last-child)
+      pagebreak: { mode: 'css' }
     };
 
     try {
@@ -66,8 +69,9 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
       await html2pdf().set(opt).from(element).save();
     } catch (error) {
       console.error("Error PDF:", error);
-      alert("Error al generar el PDF. Si el format no és perfecte, prova d'usar el botó 'Imprimir' i triar 'Anomena com a PDF'.");
+      alert("Error al generar el PDF.");
     } finally {
+      element.classList.remove('is-exporting-pdf');
       setIsExporting(false);
     }
   };
@@ -76,7 +80,6 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
     setIsExportingWord(true);
     const titolNet = data.identificacio.titol.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     
-    // Funció per crear cel·les que imitin la visualització web amb control total d'estils
     const createCell = (text: string, options: { 
       bold?: boolean, 
       width?: number, 
@@ -126,7 +129,6 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
           page: { size: { orientation: PageOrientation.LANDSCAPE } },
         },
         children: [
-          // PÀGINA 1: Portada
           new Paragraph({ text: "Generalitat de Catalunya", bold: true, size: 28, font: "Arial" }),
           new Paragraph({ text: "Departament d’Educació", bold: true, size: 28, font: "Arial", spacing: { after: 600 } }),
           new Paragraph({ text: "Situació d’aprenentatge", heading: HeadingLevel.HEADING_1, alignment: AlignmentType.RIGHT, spacing: { after: 1200 } }),
@@ -139,13 +141,8 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
             ]
           }),
           new Paragraph({ children: [new PageBreak()] }),
-
-          // PÀGINA 2: Descripció i Competències
           createSectionTitle("DESCRIPCIÓ (Context + Repte)"),
-          new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            rows: [new TableRow({ children: [createCell(data.descripcio.context_repte)] })]
-          }),
+          new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [new TableRow({ children: [createCell(data.descripcio.context_repte)] })] }),
           createSectionTitle("COMPETÈNCIES ESPECÍFIQUES"),
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
@@ -157,13 +154,8 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
             ]
           }),
           createSectionTitle("TRACTAMENT DE LES COMPETÈNCIES TRANSVERSALS"),
-          new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            rows: [new TableRow({ children: [createCell(data.descripcio.competencies_transversals)] })]
-          }),
+          new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [new TableRow({ children: [createCell(data.descripcio.competencies_transversals)] })] }),
           new Paragraph({ children: [new PageBreak()] }),
-
-          // PÀGINA 3: Concreció Curricular
           createSectionTitle("OBJECTIUS D'APRENENTATGE I CRITERIS D'AVALUACIÓ"),
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
@@ -186,13 +178,8 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
             ]
           }),
           new Paragraph({ children: [new PageBreak()] }),
-
-          // PÀGINA 4: Desenvolupament
           createSectionTitle("DESENVOLUPAMENT DE LA SITUACIÓ D’APRENENTATGE"),
-          new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            rows: [new TableRow({ children: [createCell(data.desenvolupament.estrategies_metodologiques)] })]
-          }),
+          new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [new TableRow({ children: [createCell(data.desenvolupament.estrategies_metodologiques)] })] }),
           createSectionTitle("ACTIVITATS D'APRENENTATGE I D'AVALUACIÓ"),
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
@@ -205,18 +192,10 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
             ]
           }),
           new Paragraph({ children: [new PageBreak()] }),
-
-          // PÀGINA 5: Vectors i Suports
           createSectionTitle("BREU DESCRIPCIÓ DE COM S’ABORDEN ELS VECTORS"),
-          new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            rows: [new TableRow({ children: [createCell(data.vectors_suports.vectors_descripcio, { italic: true })] })]
-          }),
+          new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [new TableRow({ children: [createCell(data.vectors_suports.vectors_descripcio, { italic: true })] })] }),
           createSectionTitle("MESURES I SUPORTS UNIVERSALS"),
-          new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            rows: [new TableRow({ children: [createCell(data.vectors_suports.suports_universals)] })]
-          }),
+          new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [new TableRow({ children: [createCell(data.vectors_suports.suports_universals)] })] }),
           createSectionTitle("MESURES I SUPORTS ADDICIONALS O INTENSIUS"),
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
@@ -225,7 +204,7 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
               ...(data.vectors_suports.suports_addicionals.length > 0 ? 
                 data.vectors_suports.suports_addicionals.map(s => 
                   new TableRow({ children: [createCell(s.alumne, { width: 35 }), createCell(s.mesura, { width: 65 })] })
-                ) : [new TableRow({ children: [createCell("Cap", { italic: true, align: AlignmentType.CENTER, width: 35 }), createCell("Cap", { italic: true, align: AlignmentType.CENTER, width: 65 })] })]
+                ) : [new TableRow({ children: [createCell("Sense dades", { italic: true, align: AlignmentType.CENTER, width: 35 }), createCell("Sense dades", { italic: true, align: AlignmentType.CENTER, width: 65 })] })]
               )
             ]
           }),
@@ -238,7 +217,6 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
       saveAs(blob, `Situacio_Aprenentatge_${titolNet}.docx`);
     } catch (err) {
       console.error("Error DOCX:", err);
-      alert("No s'ha pogut generar el fitxer Word.");
     } finally {
       setIsExportingWord(false);
     }
@@ -253,13 +231,12 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
           display: flex;
           flex-direction: column;
           align-items: center;
-          background: #e2e8f0;
           padding: 0;
         }
         .official-page { 
           background: white; 
           width: 297mm; 
-          height: 209.5mm; /* Alçada calculada per encaixar perfectament en A4 horitzontal */
+          height: 209.3mm; /* Alçada per evitar residus de píxels que causen pàgines en blanc */
           padding: 15mm; 
           margin: 0;
           box-shadow: 0 4px 30px rgba(0,0,0,0.1); 
@@ -271,7 +248,8 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
           display: flex;
           flex-direction: column;
         }
-        /* CRITICAL: No aplicar el salt de pàgina a l'últim element per evitar la pàgina en blanc al final */
+        
+        /* El secret per evitar la pàgina en blanc: només saltar si no és l'últim full */
         .official-page:not(:last-child) {
           page-break-after: always;
         }
@@ -279,11 +257,13 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
         @media screen {
            .official-page { margin-bottom: 40px; }
            .official-container { padding-bottom: 80px; }
+           /* Durant l'exportació eliminem el marge inferior per evitar que s'interpreti com a contingut extra */
+           .official-container.is-exporting-pdf .official-page { margin-bottom: 0 !important; }
         }
         
         .official-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; table-layout: fixed; border: 1.2px solid black; }
         .official-table td { border: 1px solid black; padding: 10px 14px; vertical-align: middle; font-size: 13px; word-wrap: break-word; line-height: 1.4; }
-        .official-table .label { width: 25%; font-weight: bold; background: #f9fafb; text-align: left; }
+        .official-table .label { width: 25%; font-weight: bold; background: #f9fafb; }
         .official-header { display: flex; align-items: center; gap: 15px; margin-bottom: 30px; }
         .official-title-big { font-size: 64px; font-weight: 900; text-align: right; margin-top: 50px; line-height: 1; letter-spacing: -2px; color: #000; }
         .section-title { font-weight: bold; font-size: 14px; margin-bottom: 6px; text-transform: uppercase; margin-top: 15px; color: #000; border-bottom: 1px solid #eee; }
@@ -343,7 +323,6 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
         <div className="official-page">
           <div className="section-title">DESCRIPCIÓ (Context + Repte)</div>
           <div className="box-content h-32 overflow-hidden">{data.descripcio.context_repte}</div>
-
           <div className="section-title">COMPETÈNCIES ESPECÍFIQUES</div>
           <table className="official-table">
             <thead>
@@ -361,7 +340,6 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
               ))}
             </tbody>
           </table>
-
           <div className="section-title">TRACTAMENT DE LES COMPETÈNCIES TRANSVERSALS</div>
           <div className="box-content h-24 overflow-hidden">{data.descripcio.competencies_transversals}</div>
           <div className="page-num">Pàgina 2/5</div>
@@ -475,7 +453,6 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
         </div>
       </div>
 
-      {/* FOOTER ACTIONS */}
       <div className="max-w-[1200px] mx-auto mt-8 mb-20 flex flex-wrap justify-center gap-4 no-print px-4">
         <button 
           onClick={handleDownloadPDF} 
@@ -485,28 +462,19 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
           {isExporting ? <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>}
           {isExporting ? "GENERANT PDF..." : "BAIXAR PDF"}
         </button>
-        
         <button 
           onClick={handleDownloadDOCX} 
           disabled={isExportingWord}
           className={`flex items-center gap-3 bg-green-700 text-white px-10 py-5 rounded-2xl font-black shadow-2xl transition-all transform active:scale-95 ${isExportingWord ? 'opacity-50' : 'hover:bg-green-800 hover:-translate-y-1'}`}
         >
           {isExportingWord ? <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM6 20V4h7v5h5v11H6z"/></svg>}
-          {isExportingWord ? "GENERANT WORD..." : "BAIXAR WORD (DOCX)"}
+          {isExportingWord ? "GENERANT WORD..." : "BAIXAR WORD"}
         </button>
-
-        <button 
-          onClick={() => window.print()} 
-          className="flex items-center gap-3 bg-white text-slate-800 border-2 border-slate-300 px-10 py-5 rounded-2xl font-black shadow-lg hover:bg-slate-50 transition-all transform hover:-translate-y-1"
-        >
+        <button onClick={() => window.print()} className="flex items-center gap-3 bg-white text-slate-800 border-2 border-slate-300 px-10 py-5 rounded-2xl font-black shadow-lg hover:bg-slate-50 transition-all transform hover:-translate-y-1">
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
           IMPRIMIR
         </button>
-
-        <button 
-          onClick={() => onEdit(data)} 
-          className="flex items-center gap-3 bg-slate-100 text-slate-500 px-8 py-4 rounded-xl font-bold hover:bg-white transition-all border border-slate-300"
-        >
+        <button onClick={() => onEdit(data)} className="flex items-center gap-3 bg-slate-100 text-slate-500 px-8 py-4 rounded-xl font-bold hover:bg-white transition-all border border-slate-300">
           TORNA A L'EDITOR
         </button>
       </div>
