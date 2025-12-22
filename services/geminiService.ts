@@ -10,16 +10,16 @@ export const extractLearningSituation = async (text: string): Promise<SituacioAp
 El teu objectiu és transformar les notes del docent en el MODEL OFICIAL de Situació d'Aprenentatge de la Generalitat de Catalunya.
 
 NORMES DE FORMAT CRÍTIQUES:
-1. Competències Específiques: Han de coincidir amb les del DECRET oficial. Seguir el format "CE.X. [Descripció]" (ex: CE.1. Identificar els elements...). Inclou l'àrea o matèria.
-2. Criteris d'Avaluació: Han de coincidir amb la nomenclatura del decret (ex: 1.1, 1.2, 2.1...).
+1. Competències Específiques: Han de seguir el format "CE.X" (ex: CE.1, CE.2, CE.3...) i incloure la descripció i l'àrea/matèria associada.
+2. Criteris d'Avaluació: Han d'estar numerats seguint el format del decret (ex: 1.1, 1.2, 2.1...).
 3. Objectius d'Aprenentatge: Han de seguir l'estructura Capacitat + Saber + Finalitat.
-4. Sabers: Identificar clarament els continguts de l'àrea tal com apareixen al currículum.
+4. Sabers: Identificar clarament els continguts de l'àrea.
 5. Activitats: Descriure les 4 fases (Inicial, Desenvolupament, Estructuració, Aplicació) amb la seva temporització.
-6. Vectors i Suports: Descriure com s'aborden els vectors del currículum i les mesures DUA.
+6. Vectors i Suports: Descriure com s'aborden els vectors del currículum i les mesures DUA (universals i addicionals).
 
-IMPORTANT: Fidelitat absoluta als termes i competències del decret oficial de Catalunya. No inventis nomenclatures.`;
+IMPORTANT: No inventis dades, utilitza la informació proporcionada pel docent i adapta-la al llenguatge pedagògic oficial.`;
 
-  const prompt = `Genera el JSON de la Situació d'Aprenentatge seguint el format del decret oficial per a: "${text}"`;
+  const prompt = `Genera el JSON de la Situació d'Aprenentatge seguint estrictament el format oficial (CE.1, CE.2 per a competències) per a: "${text}"`;
 
   try {
     const response = await ai.models.generateContent({
@@ -85,10 +85,26 @@ IMPORTANT: Fidelitat absoluta als termes i competències del decret oficial de C
                 activitats: {
                   type: Type.OBJECT,
                   properties: {
-                    inicials: { type: Type.OBJECT, properties: { descripcio: { type: Type.STRING }, temporitzacio: { type: Type.STRING } }, required: ["descripcio", "temporitzacio"] },
-                    desenvolupament: { type: Type.OBJECT, properties: { descripcio: { type: Type.STRING }, temporitzacio: { type: Type.STRING } }, required: ["descripcio", "temporitzacio"] },
-                    estructuracio: { type: Type.OBJECT, properties: { descripcio: { type: Type.STRING }, temporitzacio: { type: Type.STRING } }, required: ["descripcio", "temporitzacio"] },
-                    aplicacio: { type: Type.OBJECT, properties: { descripcio: { type: Type.STRING }, temporitzacio: { type: Type.STRING } }, required: ["descripcio", "temporitzacio"] }
+                    inicials: { 
+                      type: Type.OBJECT, 
+                      properties: { descripcio: { type: Type.STRING }, temporitzacio: { type: Type.STRING } },
+                      required: ["descripcio", "temporitzacio"]
+                    },
+                    desenvolupament: { 
+                      type: Type.OBJECT, 
+                      properties: { descripcio: { type: Type.STRING }, temporitzacio: { type: Type.STRING } },
+                      required: ["descripcio", "temporitzacio"]
+                    },
+                    estructuracio: { 
+                      type: Type.OBJECT, 
+                      properties: { descripcio: { type: Type.STRING }, temporitzacio: { type: Type.STRING } },
+                      required: ["descripcio", "temporitzacio"]
+                    },
+                    aplicacio: { 
+                      type: Type.OBJECT, 
+                      properties: { descripcio: { type: Type.STRING }, temporitzacio: { type: Type.STRING } },
+                      required: ["descripcio", "temporitzacio"]
+                    }
                   },
                   required: ["inicials", "desenvolupament", "estructuracio", "aplicacio"]
                 }
@@ -124,8 +140,12 @@ IMPORTANT: Fidelitat absoluta als termes i competències del decret oficial de C
     if (!output) throw new Error("Resposta buida.");
     return JSON.parse(output.trim());
   } catch (err: any) {
-    if (err.message?.includes("429")) throw new Error("QUOTA_EXHAUSTED");
-    if (err.message?.includes("Requested entity was not found.")) throw new Error("KEY_NOT_FOUND");
+    if (err.message?.includes("429")) {
+      throw new Error("QUOTA_EXHAUSTED");
+    }
+    if (err.message?.includes("Requested entity was not found.")) {
+      throw new Error("KEY_NOT_FOUND");
+    }
     throw new Error(err.message || "Error desconegut.");
   }
 };
