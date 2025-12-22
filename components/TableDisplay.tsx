@@ -1,4 +1,3 @@
-
 import React, { useRef, useState } from 'react';
 import { SituacioAprenentatge, ActivitatDetall } from '../types';
 import { 
@@ -29,6 +28,7 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
   const pdfRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingWord, setIsExportingWord] = useState(false);
+  const [isExportingGDoc, setIsExportingGDoc] = useState(false);
 
   // Normalització estricta de les competències al format CE.X.
   const formatCE = (text: string, index: number) => {
@@ -42,7 +42,6 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
     const element = pdfRef.current;
     const titolNet = data.identificacio.titol.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     
-    // Afegim una classe temporal per eliminar marges durant l'exportació
     element.classList.add('is-exporting-pdf');
 
     const opt = {
@@ -54,13 +53,12 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
         useCORS: true, 
         logging: false,
         letterRendering: true,
-        windowWidth: 1122, // Amplada exacta A4 horitzontal a 96dpi
+        windowWidth: 1122, 
         scrollY: 0,
         x: 0,
         y: 0
       },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape', compress: true },
-      // Utilitzem només 'css' per respectar el nostre selector :not(:last-child)
       pagebreak: { mode: 'css' }
     };
 
@@ -69,7 +67,6 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
       await html2pdf().set(opt).from(element).save();
     } catch (error) {
       console.error("Error PDF:", error);
-      alert("Error al generar el PDF.");
     } finally {
       element.classList.remove('is-exporting-pdf');
       setIsExporting(false);
@@ -80,7 +77,6 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
     setIsExportingWord(true);
     const titolNet = data.identificacio.titol.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     
-    // Fix: AlignmentType and VerticalAlign are values/enums, used 'any' to avoid type mismatch errors.
     const createCell = (text: string, options: { 
       bold?: boolean, 
       width?: number, 
@@ -102,7 +98,6 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
       
       return new TableCell({
         children: [new Paragraph({
-          // Fix: 'italic' renamed to 'italics' in TextRun options to match library specification.
           children: [new TextRun({ text: text || "", bold, italics: italic, size, font: "Arial" })],
           spacing: { before: 140, after: 140 },
           alignment: align
@@ -131,16 +126,13 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
           page: { size: { orientation: PageOrientation.LANDSCAPE } },
         },
         children: [
-          // Fix: Moved text formatting (bold, size, font) from Paragraph options to a nested TextRun.
           new Paragraph({ 
             children: [new TextRun({ text: "Generalitat de Catalunya", bold: true, size: 28, font: "Arial" })] 
           }),
-          // Fix: Moved text formatting from Paragraph options to a nested TextRun and preserved spacing.
           new Paragraph({ 
             children: [new TextRun({ text: "Departament d’Educació", bold: true, size: 28, font: "Arial" })],
             spacing: { after: 600 } 
           }),
-          // Fix: Use 'children' with TextRun for the title paragraph to ensure compatibility.
           new Paragraph({ 
             children: [new TextRun({ text: "Situació d’aprenentatge" })], 
             heading: HeadingLevel.HEADING_1, 
@@ -237,6 +229,156 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
     }
   };
 
+  const handleExportGoogleDocs = async () => {
+    setIsExportingGDoc(true);
+    try {
+      // Configuració de Google Identity Services (GIS)
+      // Nota: Per a un entorn real, caldria un Client ID configurat a Google Cloud Console.
+      // S'utilitza un placeholder genèric o s'assumeix que l'entorn ja permet l'autenticació si l'usuari té sessió a Google.
+      const client = (window as any).google.accounts.oauth2.initTokenClient({
+        client_id: '1079361817478-f682f7c006n7m7v2a7g7f7f7f7f7f7f7.apps.googleusercontent.com', // Placeholder
+        scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/documents',
+        callback: async (response: any) => {
+          if (response.error) {
+            console.error(response.error);
+            alert("Error en l'autenticació amb Google. Comprova els permisos.");
+            setIsExportingGDoc(false);
+            return;
+          }
+
+          const accessToken = response.access_token;
+          
+          // Generem el contingut HTML amb l'estil clàssic de compartir des de Gemini
+          const htmlContent = `
+            <html>
+            <head>
+              <meta charset="utf-8">
+              <style>
+                body { font-family: 'Google Sans', 'Arial', sans-serif; line-height: 1.6; color: #202124; max-width: 850px; margin: 40px auto; }
+                h1 { font-family: 'Google Sans', sans-serif; color: #1a73e8; border-bottom: 1px solid #dadce0; padding-bottom: 12px; font-size: 32px; font-weight: 500; }
+                h2 { font-family: 'Google Sans', sans-serif; color: #3c4043; margin-top: 32px; font-size: 24px; font-weight: 500; }
+                h3 { color: #5f6368; font-size: 18px; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 24px; }
+                table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 11pt; border: 1px solid #dadce0; }
+                th, td { border: 1px solid #dadce0; padding: 12px; vertical-align: top; }
+                th { background-color: #f8f9fa; font-weight: 500; text-align: left; color: #3c4043; }
+                .label { font-weight: 500; width: 30%; background-color: #f1f3f4; color: #5f6368; }
+                .footer { font-size: 9pt; color: #70757a; margin-top: 60px; text-align: center; border-top: 1px solid #dadce0; padding-top: 20px; }
+                .pill { display: inline-block; padding: 4px 12px; border-radius: 16px; background: #e8f0fe; color: #1967d2; font-weight: 500; font-size: 10pt; }
+              </style>
+            </head>
+            <body>
+              <div style="text-align: right; margin-bottom: 20px;">
+                <span class="pill">Situació d'Aprenentatge Oficial - Catalunya</span>
+              </div>
+              
+              <h1>${data.identificacio.titol}</h1>
+              
+              <table>
+                <tr><td class="label">Nivell / Curs</td><td>${data.identificacio.curs}</td></tr>
+                <tr><td class="label">Àrea / Àmbit</td><td>${data.identificacio.area_materia_ambit}</td></tr>
+              </table>
+
+              <h2>Context i Repte</h2>
+              <p>${data.descripcio.context_repte}</p>
+
+              <h2>Concreció Curricular</h2>
+              <h3>Competències Específiques</h3>
+              <table>
+                <thead>
+                  <tr><th>Codi i Descripció</th><th>Àrea / Matèria</th></tr>
+                </thead>
+                <tbody>
+                  ${data.concrecio_curricular.competencies_especifiques.map((c, i) => `
+                    <tr><td><b>${formatCE(c.descripcio, i)}</b></td><td>${c.area_materia}</td></tr>
+                  `).join('')}
+                </tbody>
+              </table>
+
+              <h3>Objectius d'Aprenentatge</h3>
+              <ul>
+                ${data.concrecio_curricular.objectius.map(o => `<li>${o}</li>`).join('')}
+              </ul>
+
+              <h3>Criteris d'Avaluació</h3>
+              <ul>
+                ${data.concrecio_curricular.criteris_avaluacio.map(cr => `<li>${cr}</li>`).join('')}
+              </ul>
+
+              <h3>Sabers (Continguts)</h3>
+              <table>
+                ${data.concrecio_curricular.sabers.map(s => `<tr><td style="width: 70%">${s.saber}</td><td style="color: #666; font-size: 10pt;">${s.area_materia}</td></tr>`).join('')}
+              </table>
+
+              <h2>Desenvolupament</h2>
+              <p><b>Estratègies:</b> ${data.desenvolupament.estrategies_metodologiques}</p>
+              <h3>Seqüència Didàctica</h3>
+              <table>
+                <tr><th style="width: 20%">Fase</th><th>Activitat</th><th style="width: 15%">Temps</th></tr>
+                <tr><td><b>Inicial</b></td><td>${data.desenvolupament.activitats.inicials.descripcio}</td><td>${data.desenvolupament.activitats.inicials.temporitzacio}</td></tr>
+                <tr><td><b>Desenvolupament</b></td><td>${data.desenvolupament.activitats.desenvolupament.descripcio}</td><td>${data.desenvolupament.activitats.desenvolupament.temporitzacio}</td></tr>
+                <tr><td><b>Estructuració</b></td><td>${data.desenvolupament.activitats.estructuracio.descripcio}</td><td>${data.desenvolupament.activitats.estructuracio.temporitzacio}</td></tr>
+                <tr><td><b>Aplicació</b></td><td>${data.desenvolupament.activitats.aplicacio.descripcio}</td><td>${data.desenvolupament.activitats.aplicacio.temporitzacio}</td></tr>
+              </table>
+
+              <h2>Atenció a la Diversitat</h2>
+              <p><b>Suports Universals:</b> ${data.vectors_suports.suports_universals}</p>
+              <p><b>Vectors:</b> ${data.vectors_suports.vectors_descripcio}</p>
+
+              <div class="footer">
+                Document generat amb l'Eina Programadora LOMLOE Catalunya. Estil inspirat en Google Gemini.
+              </div>
+            </body>
+            </html>
+          `;
+
+          // Construcció del body multipart per Drive API (metadata + media)
+          const metadata = {
+            name: `${data.identificacio.titol} (LOMLOE)`,
+            mimeType: 'application/vnd.google-apps.document'
+          };
+
+          const boundary = '314159265358979323846';
+          const delimiter = "\r\n--" + boundary + "\r\n";
+          const close_delim = "\r\n--" + boundary + "--";
+
+          const body =
+            delimiter +
+            'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+            JSON.stringify(metadata) +
+            delimiter +
+            'Content-Type: text/html\r\n\r\n' +
+            htmlContent +
+            close_delim;
+
+          const driveResponse = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+            method: 'POST',
+            headers: {
+              'Authorization': 'Bearer ' + accessToken,
+              'Content-Type': 'multipart/related; boundary=' + boundary
+            },
+            body: body
+          });
+
+          const driveData = await driveResponse.json();
+          if (driveData.id) {
+            window.open(`https://docs.google.com/document/d/${driveData.id}/edit`, '_blank');
+          } else {
+            console.error(driveData);
+            alert("S'ha produït un error en crear el Google Doc. Comprova el registre de la consola.");
+          }
+          setIsExportingGDoc(false);
+        }
+      });
+      
+      client.requestAccessToken();
+
+    } catch (error) {
+      console.error("Error Google Docs Export:", error);
+      alert("Error en l'exportació a Google Docs.");
+      setIsExportingGDoc(false);
+    }
+  };
+
   return (
     <div className="bg-slate-200 p-0 md:p-8 print:p-0 min-h-screen">
       <style>{`
@@ -251,7 +393,7 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
         .official-page { 
           background: white; 
           width: 297mm; 
-          height: 209.3mm; /* Alçada per evitar residus de píxels que causen pàgines en blanc */
+          height: 209.3mm;
           padding: 15mm; 
           margin: 0;
           box-shadow: 0 4px 30px rgba(0,0,0,0.1); 
@@ -264,7 +406,6 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
           flex-direction: column;
         }
         
-        /* El secret per evitar la pàgina en blanc: només saltar si no és l'últim full */
         .official-page:not(:last-child) {
           page-break-after: always;
         }
@@ -272,7 +413,6 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
         @media screen {
            .official-page { margin-bottom: 40px; }
            .official-container { padding-bottom: 80px; }
-           /* Durant l'exportació eliminem el marge inferior per evitar que s'interpreti com a contingut extra */
            .official-container.is-exporting-pdf .official-page { margin-bottom: 0 !important; }
         }
         
@@ -472,24 +612,32 @@ export const TableDisplay: React.FC<TableDisplayProps> = ({ data, onEdit }) => {
         <button 
           onClick={handleDownloadPDF} 
           disabled={isExporting}
-          className={`flex items-center gap-3 bg-red-600 text-white px-10 py-5 rounded-2xl font-black shadow-2xl transition-all transform active:scale-95 ${isExporting ? 'opacity-50' : 'hover:bg-red-700 hover:-translate-y-1'}`}
+          className={`flex items-center gap-3 bg-red-600 text-white px-8 py-4 rounded-2xl font-black shadow-2xl transition-all transform active:scale-95 ${isExporting ? 'opacity-50' : 'hover:bg-red-700 hover:-translate-y-1'}`}
         >
-          {isExporting ? <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>}
-          {isExporting ? "GENERANT PDF..." : "BAIXAR PDF"}
+          {isExporting ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>}
+          {isExporting ? "PDF..." : "BAIXAR PDF"}
         </button>
         <button 
           onClick={handleDownloadDOCX} 
           disabled={isExportingWord}
-          className={`flex items-center gap-3 bg-green-700 text-white px-10 py-5 rounded-2xl font-black shadow-2xl transition-all transform active:scale-95 ${isExportingWord ? 'opacity-50' : 'hover:bg-green-800 hover:-translate-y-1'}`}
+          className={`flex items-center gap-3 bg-green-700 text-white px-8 py-4 rounded-2xl font-black shadow-2xl transition-all transform active:scale-95 ${isExportingWord ? 'opacity-50' : 'hover:bg-green-800 hover:-translate-y-1'}`}
         >
-          {isExportingWord ? <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM6 20V4h7v5h5v11H6z"/></svg>}
-          {isExportingWord ? "GENERANT WORD..." : "BAIXAR WORD"}
+          {isExportingWord ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM6 20V4h7v5h5v11H6z"/></svg>}
+          {isExportingWord ? "WORD..." : "BAIXAR WORD"}
         </button>
-        <button onClick={() => window.print()} className="flex items-center gap-3 bg-white text-slate-800 border-2 border-slate-300 px-10 py-5 rounded-2xl font-black shadow-lg hover:bg-slate-50 transition-all transform hover:-translate-y-1">
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+        <button 
+          onClick={handleExportGoogleDocs} 
+          disabled={isExportingGDoc}
+          className={`flex items-center gap-3 bg-[#4285F4] text-white px-8 py-4 rounded-2xl font-black shadow-2xl transition-all transform active:scale-95 ${isExportingGDoc ? 'opacity-50' : 'hover:bg-[#357ae8] hover:-translate-y-1'}`}
+        >
+          {isExportingGDoc ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M14.297 2.107l7.595 13.154c.125.217.19.466.19.72 0 .253-.065.502-.19.72l-7.595 13.154c-.125.216-.326.39-.564.502-.238.112-.505.17-.775.17H5.642c-.27 0-.537-.058-.775-.17-.238-.112-.439-.286-.564-.502L1.892 16.7c-.125-.218-.19-.467-.19-.72 0-.254.065-.503.19-.72L9.487 2.107c.125-.216.326-.39.564-.502.238-.112.505-.17.775-.17h7.332c.27 0 .537.058.775.17.238.112.439.286.564.502zM15 15h-6v2h6v-2zm0-4h-6v2h6v-2zm0-4h-6v2h6V7z"/></svg>}
+          {isExportingGDoc ? "CREANT..." : "GOOGLE DOCS"}
+        </button>
+        <button onClick={() => window.print()} className="flex items-center gap-3 bg-white text-slate-800 border-2 border-slate-300 px-8 py-4 rounded-2xl font-black shadow-lg hover:bg-slate-50 transition-all transform hover:-translate-y-1">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
           IMPRIMIR
         </button>
-        <button onClick={() => onEdit(data)} className="flex items-center gap-3 bg-slate-100 text-slate-500 px-8 py-4 rounded-xl font-bold hover:bg-white transition-all border border-slate-300">
+        <button onClick={() => onEdit(data)} className="flex items-center gap-3 bg-slate-100 text-slate-500 px-6 py-4 rounded-xl font-bold hover:bg-white transition-all border border-slate-300">
           TORNA A L'EDITOR
         </button>
       </div>
